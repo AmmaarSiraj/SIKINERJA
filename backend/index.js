@@ -1,13 +1,22 @@
+require('dotenv').config();
 const express = require('express');
-const router = express.Router();
+const cors = require('cors'); // Import cors
 
-// Impor file rute
-const authRoutes = require('./auth.routes');
-const itemRoutes = require('./item.routes');
+const app = express();
+const PORT = process.env.PORT || 3001;
 
-// Gunakan rute-rute tersebut
-// URL akan tetap /api/register, /api/login, /api/halo, /api/items
-router.use('/', authRoutes);
-router.use('/', itemRoutes);
+// === Middleware ===
+// Mengizinkan frontend (di port lain) mengakses API ini
+app.use(cors()); 
+// Mengizinkan server membaca JSON dari body request
+app.use(express.json()); 
 
-module.exports = router;
+// === Routes ===
+app.get('/api/halo', (req, res) => {
+  res.json({ message: "Halo dari server Express!" });
+});
+
+// === Start Server ===
+app.listen(PORT, () => {
+  console.log(`🚀 Server backend berjalan di http://localhost:${PORT}`);
+});

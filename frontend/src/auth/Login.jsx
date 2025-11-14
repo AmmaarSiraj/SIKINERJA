@@ -12,27 +12,33 @@ const Login = () => {
     e.preventDefault();
     setError(''); // Bersihkan error sebelumnya
 
-    // TODO: Tambahkan logika API call Anda di sini
-    console.log("Mencoba login dengan:", { email, password });
-
     try {
-      // CONTOH: Ganti dengan API call Anda
-      // const response = await axios.post('/api/auth/login', { email, password });
-      
-      // Jika sukses:
-      // 1. Simpan data user/token (misal di Context atau Zustand)
-      // 2. Arahkan ke dashboard
-      // navigate('/dashboard'); 
+      // Ganti URL dengan endpoint API backend Anda
+      const response = await axios.post(
+        'http://localhost:3000/api/users/login', // 
+        { email, password } //  [cite: 24-28, 48]
+      );
 
-      // Simulasi sukses
-      if (email === "admin@test.com") {
-        console.log("Login sukses (simulasi)");
-        navigate('/dashboard'); // Arahkan ke dashboard
+      // Jika sukses (berdasarkan struktur respons di userController.js dan .docx)
+      const { token, user } = response.data; //  [cite: 32, 33, 77-78]
+
+      // 1. Simpan data user/token (Contoh: localStorage)
+      //    (Sebaiknya gunakan state management seperti Context atau Zustand untuk ini)
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+
+      // 2. Arahkan berdasarkan peran (role)
+      if (user.role === 'admin') { // 
+        navigate('/admin/dashboard');
+      } else if (user.role === 'user') {
+        navigate('/home'); // Sesuai permintaan Anda
       } else {
-        setError("Email atau password salah (simulasi).");
+        // Fallback jika ada role lain
+        navigate('/home'); 
       }
 
     } catch (err) {
+      // Tangani error dari API
       console.error("Login gagal:", err);
       setError(err.response?.data?.message || "Login gagal. Silakan coba lagi.");
     }
@@ -42,7 +48,7 @@ const Login = () => {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lg">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-extold text-gray-900">
             Login ke Akun Anda
           </h2>
         </div>

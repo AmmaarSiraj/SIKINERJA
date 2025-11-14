@@ -9,8 +9,10 @@ app.use(cors());
 app.use(express.json());
 
 const userRoutes = require('./routes/userRoutes');
+const kegiatanRoutes = require('./routes/kegiatanRoutes');
 
 app.use('/api/users', userRoutes);
+app.use('/api/kegiatan', kegiatanRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Backend is running 🚀' });

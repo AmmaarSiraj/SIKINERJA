@@ -21,14 +21,14 @@ function App() {
     <Router>
       <Routes>
         {/* Rute publik TANPA layout (Header/Footer) */}
-        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
         {/* Rute DENGAN layout (Header/Footer) */}
         <Route element={<Layout />}>
           
           {/* Rute publik di dalam layout */}
-          <Route path="/" element={<Home />} />
+          <Route path="/home" element={<Home />} />
           <Route path="/dashboard" element={<Dashboard />} />
           
           {/* Rute admin yang dilindungi di dalam layout */}

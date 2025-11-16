@@ -1,0 +1,226 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useParams } from 'react-router-dom';
+
+// Pastikan port-nya 3000 sesuai dengan backend Anda
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+// Fungsi helper untuk memformat tanggal ke YYYY-MM-DD
+const formatDateForInput = (isoDate) => {
+  if (!isoDate) return '';
+  try {
+    return new Date(isoDate).toISOString().split('T')[0];
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
+  }
+};
+
+const EditKegiatan = () => {
+  const [nama_kegiatan, setNamaKegiatan] = useState('');
+  const [deskripsi, setDeskripsi] = useState('');
+  const [tahun_anggaran, setTahunAnggaran] = useState(new Date().getFullYear());
+  const [tanggal_mulai, setTanggalMulai] = useState('');
+  const [tanggal_selesai, setTanggalSelesai] = useState('');
+  
+  const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
+  
+  const navigate = useNavigate();
+  const { id } = useParams(); // Mengambil 'id' dari URL
+
+  // 1. Ambil data kegiatan yang ada saat komponen dimuat
+  useEffect(() => {
+    const fetchKegiatanData = async () => {
+      setFetchLoading(true);
+      setError(null);
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No auth token found. Please login.');
+        }
+
+        const response = await fetch(`${API_URL}/api/kegiatan/${id}`, { //
+          headers: {
+            'Authorization': `Bearer ${token}`, //
+          },
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.message || 'Gagal mengambil data kegiatan');
+        }
+
+        const data = await response.json();
+        
+        // 2. Isi state formulir dengan data yang ada
+        setNamaKegiatan(data.nama_kegiatan);
+        setDeskripsi(data.deskripsi || '');
+        setTahunAnggaran(data.tahun_anggaran);
+        setTanggalMulai(formatDateForInput(data.tanggal_mulai));
+        setTanggalSelesai(formatDateForInput(data.tanggal_selesai));
+
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setFetchLoading(false);
+      }
+    };
+
+    fetchKegiatanData();
+  }, [id]); // Jalankan efek ini jika 'id' berubah
+
+  // 3. Kirim data yang diperbarui
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No auth token found. Please login.');
+      }
+
+      const response = await fetch(`${API_URL}/api/kegiatan/${id}`, { //
+        method: 'PUT', //
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` //
+        },
+        body: JSON.stringify({
+          nama_kegiatan,
+          deskripsi, //
+          tahun_anggaran: parseInt(tahun_anggaran, 10),
+          tanggal_mulai,
+          tanggal_selesai
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Gagal memperbarui kegiatan');
+      }
+
+      setSuccessMessage('Kegiatan berhasil diperbarui! Mengarahkan kembali...');
+      
+      // Arahkan kembali ke halaman manajemen setelah 2 detik
+      setTimeout(() => {
+        navigate('/admin/manage-kegiatan');
+      }, 2000);
+
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (fetchLoading) {
+    return <div className="text-center p-4">Memuat data kegiatan...</div>;
+  }
+
+  return (
+    <div className="bg-white shadow-md rounded-lg p-6 max-w-2xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-800">Edit Kegiatan</h2>
+        <Link
+          to="/admin/manage-kegiatan"
+          className="text-sm text-blue-600 hover:underline"
+        >
+          &larr; Kembali ke Daftar
+        </Link>
+      </div>
+
+      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
+      {successMessage && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">{successMessage}</div>}
+
+      <form onSubmit={handleSubmit}>
+        <div className="mb-4">
+          <label htmlFor="nama_kegiatan" className="block text-gray-700 text-sm font-bold mb-2">
+            Nama Kegiatan <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            id="nama_kegiatan"
+            value={nama_kegiatan}
+            onChange={(e) => setNamaKegiatan(e.target.value)}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            required
+          />
+        </div>
+
+        <div className="mb-4">
+          <label htmlFor="deskripsi" className="block text-gray-700 text-sm font-bold mb-2">
+            Deskripsi
+          </label>
+          <textarea
+            id="deskripsi"
+            rows="3"
+            value={deskripsi}
+            onChange={(e) => setDeskripsi(e.target.value)}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          />
+        </div>
+
+        <div className="mb-4">
+          <label htmlFor="tahun_anggaran" className="block text-gray-700 text-sm font-bold mb-2">
+            Tahun Anggaran <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            id="tahun_anggaran"
+            value={tahun_anggaran}
+            onChange={(e) => setTahunAnggaran(e.target.value)}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            required
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="mb-4 md:mb-0">
+            <label htmlFor="tanggal_mulai" className="block text-gray-700 text-sm font-bold mb-2">
+              Tanggal Mulai <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              id="tanggal_mulai"
+              value={tanggal_mulai}
+              onChange={(e) => setTanggalMulai(e.target.value)}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="tanggal_selesai" className="block text-gray-700 text-sm font-bold mb-2">
+              Tanggal Selesai <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              id="tanggal_selesai"
+              value={tanggal_selesai}
+              onChange={(e) => setTanggalSelesai(e.target.value)}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end">
+          <button
+            type="submit"
+            disabled={loading || fetchLoading}
+            className={`bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${loading || fetchLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {loading ? 'Memperbarui...' : 'Simpan Perubahan'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default EditKegiatan;

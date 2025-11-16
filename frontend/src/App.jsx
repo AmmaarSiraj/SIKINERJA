@@ -9,7 +9,9 @@ import AdminDashboard from './pages/admin/Dashboard'; //
 import ManageUsers from './pages/admin/ManageUsers';
 import AddUser from './pages/admin/AddUser';
 import EditUser from './pages/admin/EditUser';
-
+import ManageKegiatan from './pages/admin/ManageKegiatan';
+import AddKegiatan from './pages/admin/AddKegiatan';
+import EditKegiatan from './pages/admin/EditKegiatan';
 // Import Layout
 import Layout from './layouts/Layout';
 import AdminLayout from './layouts/AdminLayout'; // <-- IMPORT LAYOUT BARU
@@ -36,6 +38,9 @@ function AppRoutes() {
           <Route path="/admin/manage-users" element={<ManageUsers />} />
           <Route path="/admin/add-user" element={<AddUser />} />
           <Route path="/admin/edit-user/:id" element={<EditUser />} />
+          <Route path="/admin/manage-kegiatan" element={<ManageKegiatan />} />
+          <Route path="/admin/manage-kegiatan/tambah" element={<AddKegiatan />} />
+          <Route path="/admin/manage-kegiatan/edit/:id" element={<EditKegiatan />} />
         </Route>
       </Routes>
     </BrowserRouter>

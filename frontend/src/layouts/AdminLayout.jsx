@@ -39,7 +39,14 @@ const Sidebar = () => (
             Manajemen User
           </Link>
         </li>
-        {/* Tambahkan link navigasi admin lainnya di sini */}
+        <li>
+          <Link 
+            to="/admin/manage-kegiatan" // Path untuk manajemen kegiatan
+            className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors"
+          >
+            Manajemen Kegiatan
+          </Link>
+        </li>
       </ul>
     </nav>
   </aside>

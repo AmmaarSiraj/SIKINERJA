@@ -1,5 +1,14 @@
 const { pool } = require('../config/db');
 
+// SQL JOIN yang akan kita gunakan berulang kali
+const selectQuery = `
+  SELECT 
+    mitra.*, 
+    Jabatan.jabatan 
+  FROM mitra 
+  JOIN Jabatan ON mitra.id_jabatan = Jabatan.id
+`;
+
 exports.createMitra = async (req, res) => {
     const {
         id_user,
@@ -10,7 +19,8 @@ exports.createMitra = async (req, res) => {
         email,
         no_rekening,
         nama_bank,
-        batas_honor_bulanan
+        batas_honor_bulanan,
+        id_jabatan // Tambahkan id_jabatan di body
     } = req.body;
 
     if (!id_user || !nama_lengkap || !nik || !alamat || !no_hp || !no_rekening || !nama_bank) {
@@ -19,8 +29,8 @@ exports.createMitra = async (req, res) => {
 
     try {
         const sql = `
-            INSERT INTO mitra (id_user, nama_lengkap, nik, alamat, no_hp, email, no_rekening, nama_bank, batas_honor_bulanan) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO mitra (id_user, nama_lengkap, nik, alamat, no_hp, email, no_rekening, nama_bank, batas_honor_bulanan, id_jabatan) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const [result] = await pool.query(sql, [
@@ -32,10 +42,11 @@ exports.createMitra = async (req, res) => {
             email,
             no_rekening,
             nama_bank,
-            batas_honor_bulanan || 0.00
+            batas_honor_bulanan || 0.00,
+            id_jabatan || 1 // Default ke 1 (mitra) jika tidak disediakan
         ]);
 
-        const [rows] = await pool.query('SELECT * FROM mitra WHERE id = ?', [result.insertId]);
+        const [rows] = await pool.query(`${selectQuery} WHERE mitra.id = ?`, [result.insertId]);
         
         res.status(201).json(rows[0]);
     } catch (error) {
@@ -50,7 +61,7 @@ exports.createMitra = async (req, res) => {
 exports.getAllMitra = async (req, res) => {
     try {
         const [rows] = await pool.query(
-            'SELECT * FROM mitra ORDER BY created_at DESC'
+            `${selectQuery} ORDER BY mitra.created_at DESC`
         );
         res.status(200).json(rows);
     } catch (error) {
@@ -63,7 +74,7 @@ exports.getMitraById = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const [rows] = await pool.query('SELECT * FROM mitra WHERE id = ?', [id]);
+        const [rows] = await pool.query(`${selectQuery} WHERE mitra.id = ?`, [id]);
         
         if (!rows || rows.length === 0) {
              return res.status(404).json({ error: 'Mitra tidak ditemukan.' });
@@ -84,7 +95,7 @@ exports.getMitraByUserId = async (req, res) => {
     }
 
     try {
-        const [rows] = await pool.query('SELECT * FROM mitra WHERE id_user = ?', [id_user]);
+        const [rows] = await pool.query(`${selectQuery} WHERE mitra.id_user = ?`, [id_user]);
         
         if (!rows || rows.length === 0) {
              return res.status(404).json({ error: 'Mitra dengan ID User tersebut tidak ditemukan.' });
@@ -107,7 +118,8 @@ exports.updateMitra = async (req, res) => {
         email,
         no_rekening,
         nama_bank,
-        batas_honor_bulanan
+        batas_honor_bulanan,
+        id_jabatan // Tambahkan id_jabatan di update
     } = req.body;
 
     const updates = {};
@@ -119,6 +131,7 @@ exports.updateMitra = async (req, res) => {
     if (no_rekening) updates.no_rekening = no_rekening;
     if (nama_bank) updates.nama_bank = nama_bank;
     if (batas_honor_bulanan !== undefined) updates.batas_honor_bulanan = batas_honor_bulanan;
+    if (id_jabatan) updates.id_jabatan = id_jabatan; // Tambahkan ini
 
     if (Object.keys(updates).length === 0) {
         return res.status(400).json({ error: 'Tidak ada data untuk diperbarui.' });
@@ -131,7 +144,7 @@ exports.updateMitra = async (req, res) => {
             return res.status(404).json({ error: 'Mitra tidak ditemukan.' });
         }
 
-        const [rows] = await pool.query('SELECT * FROM mitra WHERE id = ?', [id]);
+        const [rows] = await pool.query(`${selectQuery} WHERE mitra.id = ?`, [id]);
 
         res.status(200).json(rows[0]);
     } catch (error) {
@@ -147,7 +160,7 @@ exports.deleteMitra = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const [selectRows] = await pool.query('SELECT * FROM mitra WHERE id = ?', [id]);
+        const [selectRows] = await pool.query(`${selectQuery} WHERE mitra.id = ?`, [id]);
 
         if (!selectRows || selectRows.length === 0) {
             return res.status(404).json({ error: 'Mitra tidak ditemukan.' });

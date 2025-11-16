@@ -131,7 +131,7 @@ const ManageUsers = () => {
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            navigate(`/admin/users/${user.id}/edit`);
+                                            navigate(`/admin/edit-user/${user.id}`);
                                         }}
                                         className="text-indigo-600 hover:text-indigo-900 mr-4"
                                     >

@@ -1,189 +1,159 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+
+const API_URL = 'http://localhost:3000/api';
+const getToken = () => localStorage.getItem('token');
 
 const ManageUsers = () => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(''); // State untuk pesan sukses
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const navigate = useNavigate();
 
-  // Fungsi untuk mengambil data user
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      // setSuccess(''); // Opsional: hapus pesan sukses saat refresh
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError("Anda tidak terautentikasi. Silakan login kembali.");
-        setLoading(false);
-        return;
-      }
-
-      const response = await axios.get(
-        'http://localhost:3000/api/users', 
-        {
-          headers: { 'Authorization': `Bearer ${token}` }
+    const fetchUsers = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const token = getToken();
+            const response = await axios.get(`${API_URL}/users`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            setUsers(response.data);
+        } catch (err) {
+            console.error(err);
+            if (err.response && err.response.status === 401) {
+                setError('Akses ditolak. Silakan login kembali.');
+                navigate('/login');
+            } else {
+                setError('Gagal memuat data pengguna.');
+            }
+        } finally {
+            setLoading(false);
         }
-      );
-      
-      setUsers(response.data);
-    } catch (err) {
-      console.error("Gagal mengambil data users:", err);
-      setError(err.response?.data?.message || "Gagal mengambil data users.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  // useEffect untuk memuat data saat komponen pertama kali render
-  useEffect(() => {
-    fetchUsers();
-  }, []); // [] dependency array berarti hanya berjalan sekali
-
-  
-  // --- FUNGSI BARU UNTUK DELETE ---
-  const handleDelete = async (userId, username) => {
-    // 1. Tampilkan konfirmasi
-    if (!window.confirm(`Apakah Anda yakin ingin menghapus user "${username}"?`)) {
-      return; // Batalkan jika user menekan "Cancel"
-    }
-
-    try {
-      setError('');
-      setSuccess('');
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError("Autentikasi gagal. Silakan login kembali.");
-        return;
-      }
-
-      // 2. Panggil endpoint DELETE /api/users/:id
-      const response = await axios.delete(
-        `http://localhost:3000/api/users/${userId}`, //
-        {
-          headers: { 'Authorization': `Bearer ${token}` }
+    const handleDelete = async (id) => {
+        if (!window.confirm('Apakah Anda yakin ingin menghapus pengguna ini?')) {
+            return;
         }
-      );
+        try {
+            const token = getToken();
+            await axios.delete(`${API_URL}/users/${id}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            fetchUsers();
+        } catch (err) {
+            console.error(err);
+            alert('Gagal menghapus pengguna.');
+        }
+    };
 
-      // 3. Tampilkan pesan sukses dari backend
-      setSuccess(response.data.message || 'User berhasil dihapus.'); //
+    useEffect(() => {
+        fetchUsers();
+    }, []);
 
-      // 4. Update state di frontend untuk menghapus user dari daftar
-      // Ini lebih efisien daripada memanggil fetchUsers() lagi
-      setUsers(users.filter(user => user.id !== userId));
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        return new Date(dateString).toLocaleDateString('id-ID', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+        });
+    };
 
-    } catch (err) {
-      console.error("Gagal menghapus user:", err);
-      setError(err.response?.data?.message || "Gagal menghapus user.");
+    if (loading) {
+        return <div className="text-center py-8">Memuat data...</div>;
     }
-  };
-  // --- AKHIR FUNGSI BARU ---
 
+    if (error) {
+        return <div className="text-center py-8 text-red-600">Error: {error}</div>;
+    }
 
-  // Tampilkan pesan loading
-  if (loading) {
-    return <div className="text-center p-10">Loading data user...</div>;
-  }
-
-  return (
-    <div className="container mx-auto">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">Manajemen User</h1>
-      
-      <div className="mb-4">
-        <Link
-          to="/admin/add-user"
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-        >
-          + Tambah User Baru
-        </Link>
-      </div>
-
-      {/* Tampilkan pesan error jika ada */}
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-          Error: {error}
+    return (
+        <div className="container mx-auto p-4">
+            <h1 className="text-3xl font-bold mb-6">Manajemen Pengguna</h1>
+            <div className="flex justify-end mb-4">
+                <button
+                    onClick={() => navigate('/admin/users/add')}
+                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                >
+                    Tambah Pengguna Baru
+                </button>
+            </div>
+            <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Username
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Email
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Role
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Tanggal Daftar
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Aksi
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {users.map((user) => (
+                            <tr
+                                key={user.id}
+                                onClick={() => navigate(`/admin/users/${user.id}/detail`)}
+                                className="hover:bg-gray-100 cursor-pointer"
+                            >
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="text-sm font-medium text-gray-900">{user.username}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="text-sm text-gray-900">{user.email}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'} capitalize`}>
+                                        {user.role}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {formatDate(user.created_at)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            navigate(`/admin/users/${user.id}/edit`);
+                                        }}
+                                        className="text-indigo-600 hover:text-indigo-900 mr-4"
+                                    >
+                                        Edit
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDelete(user.id);
+                                        }}
+                                        className="text-red-600 hover:text-red-900"
+                                    >
+                                        Hapus
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
-      )}
-
-      {/* Tampilkan pesan sukses jika ada */}
-      {success && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
-          {success}
-        </div>
-      )}
-
-      {/* Tabel untuk menampilkan data user */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <table className="min-w-full leading-normal">
-          <thead>
-            <tr className="bg-gray-200 text-gray-600 uppercase text-sm">
-              <th className="py-3 px-5 text-left">Username</th>
-              <th className="py-3 px-5 text-left">Email</th>
-              <th className="py-3 px-5 text-left">Role</th>
-              <th className="py-3 px-5 text-left">Tanggal Bergabung</th>
-              <th className="py-3 px-5 text-left">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="text-gray-700">
-            {users.map((user) => (
-              <tr key={user.id} className="border-b border-gray-200 hover:bg-gray-100">
-                <td className="py-4 px-5">
-                  <p className="font-medium">{user.username}</p>
-                </td>
-                <td className="py-4 px-5">
-                  <p>{user.email}</p>
-                </td>
-                <td className="py-4 px-5">
-                  <span 
-                    className={`py-1 px-3 rounded-full text-xs font-medium ${
-                      user.role === 'admin' 
-                        ? 'bg-blue-200 text-blue-800' 
-                        : 'bg-green-200 text-green-800'
-                    }`}
-                  >
-                    {user.role}
-                  </span>
-                </td>
-                <td className="py-4 px-5">
-                  {new Date(user.created_at).toLocaleDateString('id-ID', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </td>
-                <td className="py-4 px-5">
-                  <Link
-                    to={`/admin/edit-user/${user.id}`}
-                    className="text-sm bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-3 rounded mr-2"
-                  >
-                    Edit
-                  </Link>
-                  
-                  {/* --- TOMBOL DELETE DIPERBARUI --- */}
-                  <button 
-                    onClick={() => handleDelete(user.id, user.username)} //
-                    className="text-sm bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded"
-                  >
-                    Delete
-                  </button>
-                  {/* --- AKHIR PERUBAHAN TOMBOL --- */}
-
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {users.length === 0 && !loading && (
-        <p className="text-center text-gray-500 mt-10">Belum ada data user.</p>
-      )}
-    </div>
-  );
+    );
 };
 
 export default ManageUsers;

@@ -12,6 +12,8 @@ import EditUser from './pages/admin/EditUser';
 import ManageKegiatan from './pages/admin/ManageKegiatan';
 import AddKegiatan from './pages/admin/AddKegiatan';
 import EditKegiatan from './pages/admin/EditKegiatan';
+import DetailUser from './pages/admin/DetailUser';
+import DetailKegiatan from './pages/admin/DetailKegiatan';
 // Import Layout
 import Layout from './layouts/Layout';
 import AdminLayout from './layouts/AdminLayout'; // <-- IMPORT LAYOUT BARU
@@ -23,13 +25,12 @@ function AppRoutes() {
     <BrowserRouter>
       <Routes>
         {/* === Rute Publik (Login/Register) === */}
-        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
         
         {/* === Rute User Biasa (menggunakan Layout utama) === */}
         <Route element={<Layout />}>
           <Route path="/home" element={<Home />} />
-          <Route path="/" element={<Navigate to="/home" replace />} />
         </Route>
 
         {/* === Rute Admin (menggunakan AdminLayout BARU) === */}
@@ -38,9 +39,11 @@ function AppRoutes() {
           <Route path="/admin/manage-users" element={<ManageUsers />} />
           <Route path="/admin/add-user" element={<AddUser />} />
           <Route path="/admin/edit-user/:id" element={<EditUser />} />
+          <Route path="/admin/users/:id/detail" element={<DetailUser />} />
           <Route path="/admin/manage-kegiatan" element={<ManageKegiatan />} />
           <Route path="/admin/manage-kegiatan/tambah" element={<AddKegiatan />} />
           <Route path="/admin/manage-kegiatan/edit/:id" element={<EditKegiatan />} />
+          <Route path="/admin/manage-kegiatan/detail/:id" element={<DetailKegiatan />} />
         </Route>
       </Routes>
     </BrowserRouter>

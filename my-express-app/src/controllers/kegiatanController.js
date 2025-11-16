@@ -1,89 +1,125 @@
-// src/controllers/kegiatanController.js
-const supabase = require('../config/supabase');
+const { pool } = require('../config/db');
 
-// POST /api/kegiatan
 const createKegiatan = async (req, res) => {
+  // 1. Ambil data utama DAN array subkegiatans dari body
+  const { 
+    nama_kegiatan, 
+    deskripsi, 
+    tahun_anggaran, 
+    tanggal_mulai, 
+    tanggal_selesai, 
+    subkegiatans // Ini adalah array baru (opsional)
+  } = req.body;
+  
+  // 2. Validasi data utama
+  if (!nama_kegiatan || !tahun_anggaran || !tanggal_mulai || !tanggal_selesai) {
+    return res.status(400).json({ message: 'Nama kegiatan, tahun anggaran, tanggal mulai, dan tanggal selesai wajib diisi' });
+  }
+
+  // 3. Validasi data sub-kegiatan (jika ada)
+  if (subkegiatans && subkegiatans.length > 0) {
+    for (const sub of subkegiatans) {
+      if (!sub.nama_sub_kegiatan) {
+        return res.status(400).json({ message: 'Nama sub kegiatan tidak boleh kosong' });
+      }
+    }
+  }
+
+  // 4. Mulai Transaksi Database
+  let connection;
   try {
-    const { nama_kegiatan, deskripsi, tahun_anggaran, tanggal_mulai, tanggal_selesai } = req.body;
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
 
-    // Validasi input
-    if (!nama_kegiatan || !tahun_anggaran || !tanggal_mulai || !tanggal_selesai) {
-      return res.status(400).json({ message: 'Nama kegiatan, tahun anggaran, tanggal mulai, dan tanggal selesai wajib diisi' });
+    // 5. Insert 'kegiatan' utama
+    const sqlKegiatan = `
+      INSERT INTO kegiatan (nama_kegiatan, deskripsi, tahun_anggaran, tanggal_mulai, tanggal_selesai) 
+      VALUES (?, ?, ?, ?, ?)
+    `;
+    const [kegiatanResult] = await connection.query(sqlKegiatan, [
+      nama_kegiatan,
+      deskripsi,
+      tahun_anggaran,
+      tanggal_mulai,
+      tanggal_selesai,
+    ]);
+    
+    const newKegiatanId = kegiatanResult.insertId; // Ambil ID dari 'kegiatan' yang baru saja dibuat
+
+    // 6. Insert 'subkegiatan' (jika ada)
+    if (subkegiatans && subkegiatans.length > 0) {
+      // Kita gunakan query INSERT bulk
+      const sqlSubKegiatan = `
+        INSERT INTO subkegiatan (id_kegiatan, nama_sub_kegiatan, deskripsi) 
+        VALUES ?
+      `;
+      
+      // Format data untuk bulk insert: [[id, name, desc], [id, name, desc], ...]
+      const subKegiatanValues = subkegiatans.map(sub => [
+        newKegiatanId, // ID kegiatan yang sama untuk semua
+        sub.nama_sub_kegiatan,
+        sub.deskripsi
+      ]);
+
+      // Trigger 'sub1', 'sub2' di database Anda akan otomatis berjalan untuk setiap baris
+      await connection.query(sqlSubKegiatan, [subKegiatanValues]);
     }
 
-    const { data, error } = await supabase
-      .from('kegiatan')
-      .insert([
-        {
-          nama_kegiatan,
-          deskripsi, // Boleh null
-          tahun_anggaran,
-          tanggal_mulai,
-          tanggal_selesai,
-        },
-      ])
-      .select()
-      .single();
+    // 7. Jika semua berhasil, commit transaksi
+    await connection.commit();
 
-    if (error) {
-      console.error(error);
-      return res.status(500).json({ message: 'Gagal membuat kegiatan baru' });
-    }
+    // 8. Ambil data yang baru dibuat untuk dikembalikan ke frontend
+    const [kegiatanRows] = await connection.query('SELECT * FROM kegiatan WHERE id = ?', [newKegiatanId]);
+    const [subKegiatanRows] = await connection.query('SELECT * FROM subkegiatan WHERE id_kegiatan = ?', [newKegiatanId]);
 
-    return res.status(201).json({
-      message: 'Kegiatan berhasil ditambahkan',
-      data: data,
+    res.status(201).json({
+      message: 'Kegiatan dan Sub Kegiatan berhasil ditambahkan',
+      data: {
+        kegiatan: kegiatanRows[0],
+        subkegiatans: subKegiatanRows
+      }
     });
+
   } catch (err) {
+    // 9. Jika ada error, batalkan semua (rollback)
+    if (connection) await connection.rollback();
     console.error(err);
-    return res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: 'Server error saat menyimpan data' });
+  } finally {
+    // 10. Selalu lepaskan koneksi
+    if (connection) connection.release();
   }
 };
 
-// GET /api/kegiatan
 const getAllKegiatan = async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('kegiatan')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error(error);
-      return res.status(500).json({ message: 'Gagal mengambil data kegiatan' });
-    }
-
-    return res.json(data);
+    const [rows] = await pool.query(
+      'SELECT * FROM kegiatan ORDER BY created_at DESC'
+    );
+    return res.json(rows);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error' });
   }
 };
 
-// GET /api/kegiatan/:id
 const getKegiatanById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data, error } = await supabase
-      .from('kegiatan')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const [rows] = await pool.query('SELECT * FROM kegiatan WHERE id = ?', [id]);
 
-    if (error || !data) {
-      console.error(error);
+    if (!rows || rows.length === 0) {
       return res.status(404).json({ message: 'Kegiatan tidak ditemukan' });
     }
 
-    return res.json(data);
+    return res.json(rows[0]);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error' });
   }
 };
 
-// PUT /api/kegiatan/:id
 const updateKegiatan = async (req, res) => {
   try {
     const { id } = req.params;
@@ -100,25 +136,17 @@ const updateKegiatan = async (req, res) => {
         return res.status(400).json({ message: 'Tidak ada data yang diperbarui' });
     }
 
-    const { data, error } = await supabase
-      .from('kegiatan')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
+    const [result] = await pool.query('UPDATE kegiatan SET ? WHERE id = ?', [updateData, id]);
 
-    if (error) {
-      console.error(error);
-      return res.status(500).json({ message: 'Gagal update kegiatan' });
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Kegiatan tidak ditemukan' });
     }
 
-    if (!data) {
-        return res.status(404).json({ message: 'Kegiatan tidak ditemukan' });
-    }
+    const [rows] = await pool.query('SELECT * FROM kegiatan WHERE id = ?', [id]);
 
     return res.json({
       message: 'Kegiatan updated successfully',
-      data: data,
+      data: rows[0],
     });
   } catch (err) {
     console.error(err);
@@ -126,16 +154,14 @@ const updateKegiatan = async (req, res) => {
   }
 };
 
-// DELETE /api/kegiatan/:id
 const deleteKegiatan = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { error } = await supabase.from('kegiatan').delete().eq('id', id);
+    const [result] = await pool.query('DELETE FROM kegiatan WHERE id = ?', [id]);
 
-    if (error) {
-      console.error(error);
-      return res.status(500).json({ message: 'Gagal menghapus kegiatan' });
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Kegiatan tidak ditemukan' });
     }
 
     return res.json({ message: 'Kegiatan deleted successfully' });

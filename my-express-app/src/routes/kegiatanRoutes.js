@@ -1,7 +1,5 @@
-// src/routes/kegiatanRoutes.js
 const express = require('express');
 const router = express.Router();
-
 const {
   createKegiatan,
   getAllKegiatan,
@@ -10,17 +8,17 @@ const {
   deleteKegiatan,
 } = require('../controllers/kegiatanController');
 
-const authMiddleware = require('../midleware/authMiddleware');
+// --- UBAH BAGIAN INI ---
+// Hapus baris lama: const { protect, admin } = require('../midleware/authMiddleware');
+// Ganti dengan ini:
+// ----------------------
 
-// Semua route di bawah ini akan dilindungi oleh authMiddleware
-// Memastikan hanya user yang login yang bisa mengakses
-router.use(authMiddleware);
-
-// CRUD Endpoints
-router.post('/', createKegiatan);
+// --- LALU TAMBAHKAN "authMiddleware." DI DEPAN protect & admin ---
+router.post('/',createKegiatan);
 router.get('/', getAllKegiatan);
 router.get('/:id', getKegiatanById);
 router.put('/:id', updateKegiatan);
 router.delete('/:id', deleteKegiatan);
+// -----------------------------------------------------------------
 
 module.exports = router;

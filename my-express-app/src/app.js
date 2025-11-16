@@ -11,10 +11,12 @@ app.use(express.json());
 const userRoutes = require('./routes/userRoutes');
 const kegiatanRoutes = require('./routes/kegiatanRoutes');
 const mitraRoutes = require('./routes/mitraRoutes');
+const subKegiatanRoutes = require('./routes/subKegiatanRoutes');
 
 app.use('/api/users', userRoutes);
 app.use('/api/kegiatan', kegiatanRoutes);
 app.use('/api/mitra', mitraRoutes);
+app.use('/api/subkegiatan', subKegiatanRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Backend is running 🚀' });

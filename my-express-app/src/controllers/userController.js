@@ -1,9 +1,7 @@
-// src/controllers/userController.js
-const supabase = require('../config/supabase');
+const { pool } = require('../config/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-// POST /api/users/register
 const registerUser = async (req, res) => {
   try {
     const { username, email, password, role } = req.body;
@@ -12,59 +10,48 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: 'username, email, dan password wajib diisi' });
     }
 
-    // hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const { data, error } = await supabase
-      .from('users')
-      .insert([
-        {
-          username,
-          email,
-          role: role || 'user',
-          password: hashedPassword,
-        },
-      ])
-      .select('id, username, email, role, created_at')
-      .single();
+    const sql = `
+      INSERT INTO users (username, email, role, password) 
+      VALUES (?, ?, ?, ?)
+    `;
+    
+    const [result] = await pool.query(sql, [
+      username,
+      email,
+      role || 'user',
+      hashedPassword,
+    ]);
 
-    if (error) {
-      // duplicate (unique violation) biasanya code 23505
-      if (error.code === '23505') {
-        return res.status(400).json({ message: 'Username atau email sudah digunakan' });
-      }
-      console.error(error);
-      return res.status(500).json({ message: 'Gagal mendaftarkan user' });
-    }
+    const [rows] = await pool.query(
+      'SELECT id, username, email, role, created_at FROM users WHERE id = ?',
+      [result.insertId]
+    );
 
     return res.status(201).json({
       message: 'User registered successfully',
-      user: data,
+      user: rows[0],
     });
   } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ message: 'Username atau email sudah digunakan' });
+    }
     console.error(err);
     return res.status(500).json({ message: 'Server error' });
   }
 };
 
-// POST /api/users/login
 const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body; // bisa juga pakai username kalau mau
+    const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: 'email dan password wajib diisi' });
     }
 
-    const { data: users, error } = await supabase
-      .from('users')
-      .select('id, username, email, role, password')
-      .eq('email', email);
-
-    if (error) {
-      console.error(error);
-      return res.status(500).json({ message: 'Gagal mengambil data user' });
-    }
+    const sql = 'SELECT id, username, email, role, password FROM users WHERE email = ?';
+    const [users] = await pool.query(sql, [email]);
 
     if (!users || users.length === 0) {
       return res.status(401).json({ message: 'Email atau password salah' });
@@ -87,7 +74,6 @@ const loginUser = async (req, res) => {
       { expiresIn: '1d' }
     );
 
-    // jangan kirim password balik ke client
     delete user.password;
 
     return res.json({
@@ -101,50 +87,38 @@ const loginUser = async (req, res) => {
   }
 };
 
-// GET /api/users
 const getUsers = async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, username, email, role, created_at')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error(error);
-      return res.status(500).json({ message: 'Gagal mengambil data user' });
-    }
-
-    return res.json(data);
+    const [rows] = await pool.query(
+      'SELECT id, username, email, role, created_at FROM users ORDER BY created_at DESC'
+    );
+    return res.json(rows);
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: 'Gagal mengambil data user' });
   }
 };
 
-// GET /api/users/:id
 const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, username, email, role, created_at')
-      .eq('id', id)
-      .single();
+    const [rows] = await pool.query(
+      'SELECT id, username, email, role, created_at FROM users WHERE id = ?',
+      [id]
+    );
 
-    if (error) {
-      console.error(error);
+    if (!rows || rows.length === 0) {
       return res.status(404).json({ message: 'User tidak ditemukan' });
     }
 
-    return res.json(data);
+    return res.json(rows[0]);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error' });
   }
 };
 
-// PUT /api/users/:id
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -160,44 +134,48 @@ const updateUser = async (req, res) => {
       updateData.password = hashedPassword;
     }
 
-    const { data, error } = await supabase
-      .from('users')
-      .update(updateData)
-      .eq('id', id)
-      .select('id, username, email, role, created_at')
-      .single();
-
-    if (error) {
-      console.error(error);
-      return res.status(500).json({ message: 'Gagal update user' });
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ message: 'Tidak ada data yang diperbarui' });
     }
+
+    const [result] = await pool.query('UPDATE users SET ? WHERE id = ?', [updateData, id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'User tidak ditemukan' });
+    }
+    
+    const [rows] = await pool.query(
+      'SELECT id, username, email, role, created_at FROM users WHERE id = ?',
+      [id]
+    );
 
     return res.json({
       message: 'User updated successfully',
-      user: data,
+      user: rows[0],
     });
   } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ message: 'Username atau email sudah digunakan' });
+    }
     console.error(err);
-    return res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: 'Gagal update user' });
   }
 };
 
-// DELETE /api/users/:id
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { error } = await supabase.from('users').delete().eq('id', id);
+    const [result] = await pool.query('DELETE FROM users WHERE id = ?', [id]);
 
-    if (error) {
-      console.error(error);
-      return res.status(500).json({ message: 'Gagal menghapus user' });
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'User tidak ditemukan' });
     }
 
     return res.json({ message: 'User deleted successfully' });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: 'Gagal menghapus user' });
   }
 };
 

@@ -14,6 +14,8 @@ import AddKegiatan from './pages/admin/AddKegiatan';
 import EditKegiatan from './pages/admin/EditKegiatan';
 import DetailUser from './pages/admin/DetailUser';
 import DetailKegiatan from './pages/admin/DetailKegiatan';
+import Penugasan from './pages/admin/Penugasan';
+import DetailPenugasan from './pages/admin/DetailPenugasan';
 // Import Layout
 import Layout from './layouts/Layout';
 import AdminLayout from './layouts/AdminLayout'; // <-- IMPORT LAYOUT BARU
@@ -27,7 +29,7 @@ function AppRoutes() {
         {/* === Rute Publik (Login/Register) === */}
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        
+
         {/* === Rute User Biasa (menggunakan Layout utama) === */}
         <Route element={<Layout />}>
           <Route path="/home" element={<Home />} />
@@ -44,6 +46,8 @@ function AppRoutes() {
           <Route path="/admin/manage-kegiatan/tambah" element={<AddKegiatan />} />
           <Route path="/admin/manage-kegiatan/edit/:id" element={<EditKegiatan />} />
           <Route path="/admin/manage-kegiatan/detail/:id" element={<DetailKegiatan />} />
+          <Route path="/admin/penugasan" element={<Penugasan />} />
+          <Route path="/admin/penugasan/detail/:id" element={<DetailPenugasan />} />
         </Route>
       </Routes>
     </BrowserRouter>

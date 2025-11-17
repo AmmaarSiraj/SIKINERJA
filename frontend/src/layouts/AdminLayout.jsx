@@ -24,15 +24,15 @@ const Sidebar = () => (
     <nav>
       <ul className="space-y-2">
         <li>
-          <Link 
-            to="/admin/dashboard" 
+          <Link
+            to="/admin/dashboard"
             className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors"
           >
             Dashboard
           </Link>
         </li>
         <li>
-          <Link 
+          <Link
             to="/admin/manage-users" // Contoh link lain
             className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors"
           >
@@ -40,11 +40,19 @@ const Sidebar = () => (
           </Link>
         </li>
         <li>
-          <Link 
+          <Link
             to="/admin/manage-kegiatan" // Path untuk manajemen kegiatan
             className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors"
           >
             Manajemen Kegiatan
+          </Link>
+        </li>
+        <li>
+          <Link
+            to="/admin/penugasan" // Path untuk manajemen penugasan
+            className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors"
+          >
+            Penugasan
           </Link>
         </li>
       </ul>

@@ -16,6 +16,7 @@ import DetailUser from './pages/admin/DetailUser';
 import DetailKegiatan from './pages/admin/DetailKegiatan';
 import Penugasan from './pages/admin/Penugasan';
 import DetailPenugasan from './pages/admin/DetailPenugasan';
+import LengkapiProfile from './pages/LengkapiProfile';
 // Import Layout
 import Layout from './layouts/Layout';
 import AdminLayout from './layouts/AdminLayout'; // <-- IMPORT LAYOUT BARU
@@ -33,6 +34,7 @@ function AppRoutes() {
         {/* === Rute User Biasa (menggunakan Layout utama) === */}
         <Route element={<Layout />}>
           <Route path="/home" element={<Home />} />
+          <Route path="/lengkapi-profil" element={<LengkapiProfile />} />
         </Route>
 
         {/* === Rute Admin (menggunakan AdminLayout BARU) === */}

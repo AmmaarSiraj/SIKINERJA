@@ -2,9 +2,13 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+// Tentukan API URL, sesuaikan dengan backend Anda
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 const Register = () => {
   const [formData, setFormData] = useState({
-    name: '',
+    // --- PERUBAHAN 1: Ganti 'name' menjadi 'username' ---
+    username: '', 
     email: '',
     password: '',
     confirmPassword: '',
@@ -13,7 +17,8 @@ const Register = () => {
   const [success, setSuccess] = useState('');
   const navigate = useNavigate();
 
-  const { name, email, password, confirmPassword } = formData;
+  // --- PERUBAHAN 2: Sesuaikan destructuring ---
+  const { username, email, password, confirmPassword } = formData;
 
   const handleChange = (e) => {
     setFormData({
@@ -32,36 +37,45 @@ const Register = () => {
       return;
     }
 
-    console.log("Mencoba mendaftar dengan:", { name, email, password });
-
+    // --- PERUBAHAN 3: Implementasi API call yang sebenarnya ---
     try {
-      // TODO: Ganti dengan API call Anda
-      // const response = await axios.post('/api/auth/register', { name, email, password });
+      // Data yang dikirim ke backend harus cocok dengan userController
+      const payload = {
+        username,
+        email,
+        password,
+        // role tidak perlu dikirim, backend akan default ke 'user'
+      };
+
+      // Ganti simulasi dengan axios.post
+      await axios.post(
+        `${API_URL}/api/users/register`, // Endpoint dari userRoutes.js
+        payload
+      );
       
-      // Simulasi sukses
+      // Jika sukses
       setSuccess("Registrasi berhasil! Anda akan diarahkan ke halaman login.");
       setTimeout(() => {
-        navigate('/login');
+        navigate('/'); // Arahkan ke halaman Login (sesuai App.jsx)
       }, 2000);
 
     } catch (err) {
       console.error("Registrasi gagal:", err);
-      setError(err.response?.data?.message || "Registrasi gagal. Email mungkin sudah terdaftar.");
+      // Menampilkan pesan error dari backend (spt 'Username atau email sudah digunakan')
+      setError(err.response?.data?.message || "Registrasi gagal. Silakan coba lagi.");
     }
   };
 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
       
-      {/* Bagian Kiri: Gambar/Branding (Tampil di Desktop) */}
+      {/* Bagian Kiri: Branding */}
       <div className="hidden lg:block relative">
         <img
           className="absolute inset-0 w-full h-full object-cover"
-          // Ganti dengan gambar branding Anda. URL ini hanya placeholder.
           src="https://source.unsplash.com/random/1200x900?community,growth" 
           alt="Branding"
         />
-        {/* Overlay untuk keterbacaan teks */}
         <div className="absolute inset-0 bg-green-800 opacity-60"></div>
         <div className="absolute inset-0 flex flex-col justify-center items-center text-white p-12 z-10">
           <h1 className="text-4xl font-bold mb-4 text-center">
@@ -77,11 +91,10 @@ const Register = () => {
       <div className="w-full flex items-center justify-center bg-gray-100 p-8 lg:p-12">
         <div className="max-w-md w-full space-y-8">
           
-          {/* Header Form (Logo dan Judul) */}
           <div>
             <img
               className="mx-auto h-12 w-auto"
-              src="/logo.png" // GANTI DENGAN PATH LOGO ANDA
+              src="/logo.png"
               alt="Logo Aplikasi"
             />
             <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
@@ -89,7 +102,7 @@ const Register = () => {
             </h2>
             <p className="mt-2 text-center text-sm text-gray-600">
               Sudah punya akun?{' '}
-              <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
+              <Link to="/" className="font-medium text-blue-600 hover:text-blue-500">
                 Login di sini
               </Link>
             </p>
@@ -97,23 +110,24 @@ const Register = () => {
 
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-4">
-              {/* Input Nama */}
+              
+              {/* --- PERUBAHAN 4: Ganti input 'name' menjadi 'username' --- */}
               <div>
-                <label htmlFor="name" className="sr-only">Nama Lengkap</label>
+                <label htmlFor="username" className="sr-only">Username</label>
                 <input
-                  id="name"
-                  name="name"
+                  id="username"
+                  name="username" // Ganti
                   type="text"
-                  autoComplete="name"
+                  autoComplete="username" // Ganti
                   required
                   className="appearance-none rounded-md relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="Nama Lengkap"
-                  value={name}
+                  placeholder="Username" // Ganti
+                  value={username} // Ganti
                   onChange={handleChange}
                 />
               </div>
               
-              {/* Input Email */}
+              {/* Input Email (Tetap) */}
               <div>
                 <label htmlFor="email-address" className="sr-only">Alamat Email</label>
                 <input
@@ -129,8 +143,8 @@ const Register = () => {
                 />
               </div>
 
-              {/* Input Password */}
-<div>
+              {/* Input Password (Tetap) */}
+              <div>
                 <label htmlFor="password" className="sr-only">Password</label>
                 <input
                   id="password"
@@ -145,7 +159,7 @@ const Register = () => {
                 />
               </div>
 
-              {/* Input Konfirmasi Password */}
+              {/* Input Konfirmasi Password (Tetap) */}
               <div>
                 <label htmlFor="confirm-password" className="sr-only">Konfirmasi Password</label>
                 <input

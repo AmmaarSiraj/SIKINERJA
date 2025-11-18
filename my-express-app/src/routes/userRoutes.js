@@ -9,7 +9,6 @@ const {
   updateUser,
   deleteUser,
 } = require('../controllers/userController');
-
 // Ubah cara import di sini:
 const authMiddleware = require('../midleware/authMiddleware');
 

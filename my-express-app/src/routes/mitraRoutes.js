@@ -16,7 +16,7 @@ const authMiddleware = require('../midleware/authMiddleware');
 // ----------------------
 
 // --- LALU TAMBAHKAN "authMiddleware." DI DEPAN protect & admin ---
-router.post('/', authMiddleware.protect, authMiddleware.admin, createMitra);
+router.post('/', authMiddleware.protect, createMitra);
 router.get('/', authMiddleware.protect, authMiddleware.admin, getAllMitra);
 router.get('/:id', authMiddleware.protect, getMitraById);
 router.get('/user/:id_user', authMiddleware.protect, getMitraByUserId); 

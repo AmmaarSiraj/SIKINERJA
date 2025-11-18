@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import PartEditSubKegiatan from '../../components/admin/PartEditSubKegiatan';
+// --- 1. IMPORT KOMPONEN HONORARIUM BARU ---
+import PartManageHonor from '../../components/admin/PartManageHonor';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-// Fungsi helper untuk memformat tanggal ke YYYY-MM-DD
+// ... (fungsi formatDateForInput tetap sama)
 const formatDateForInput = (isoDate) => {
   if (!isoDate) return '';
   try {
@@ -14,6 +16,7 @@ const formatDateForInput = (isoDate) => {
     return '';
   }
 };
+
 
 const EditKegiatan = () => {
   // State untuk form utama (kegiatan)
@@ -30,7 +33,7 @@ const EditKegiatan = () => {
   
   const { id } = useParams(); // Mengambil 'id' dari URL
 
-  // 1. Ambil data kegiatan UTAMA saat komponen dimuat
+  // 1. Ambil data kegiatan UTAMA (ini tidak berubah)
   useEffect(() => {
     const fetchKegiatanData = async () => {
       setFetchLoading(true);
@@ -70,7 +73,7 @@ const EditKegiatan = () => {
     fetchKegiatanData();
   }, [id]);
 
-  // 2. Handler submit untuk data KEGIATAN UTAMA
+  // 2. Handler submit untuk data KEGIATAN UTAMA (ini tidak berubah)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -148,6 +151,7 @@ const EditKegiatan = () => {
           {successMessage && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">{successMessage}</div>}
 
           <form onSubmit={handleSubmit}>
+            {/* ... (form input untuk nama_kegiatan, deskripsi, dll tidak berubah) ... */}
             <div className="mb-4">
               <label htmlFor="nama_kegiatan" className="block text-gray-700 text-sm font-bold mb-2">
                 Nama Kegiatan <span className="text-red-500">*</span>
@@ -230,9 +234,14 @@ const EditKegiatan = () => {
           </form>
         </div>
         
-        {/* Kolom 2: Form Sub Kegiatan */}
+        {/* Kolom 2: Form Sub Kegiatan & Honorarium */}
         <div className="space-y-6">
+          {/* Komponen Sub Kegiatan (tidak berubah) */}
           <PartEditSubKegiatan kegiatanId={id} />
+
+          {/* --- 2. TAMBAHKAN KOMPONEN HONORARIUM DI SINI --- */}
+          {/* Kita tambahkan pengecekan fetchLoading agar ID-nya valid */}
+          {!fetchLoading && <PartManageHonor kegiatanId={id} />}
         </div>
       </div>
     </div>

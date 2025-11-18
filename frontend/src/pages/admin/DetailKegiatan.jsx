@@ -11,7 +11,14 @@ const DetailKegiatan = () => {
   const [error, setError] = useState(null);
   const [authToken, setAuthToken] = useState(localStorage.getItem('token'));
 
-  // Ambil data kegiatan dan sub-kegiatan saat komponen dimuat
+  // State untuk menyimpan info honorarium
+  const [honorariumInfo, setHonorariumInfo] = useState({
+    total: 0,
+    mainTarif: 0,
+    subTarif: 0,
+  });
+
+  // Ambil data kegiatan, sub-kegiatan, dan honorarium saat komponen dimuat
   useEffect(() => {
     if (!id || !authToken) {
       setError('ID Kegiatan tidak ditemukan atau Anda tidak terautentikasi.');
@@ -35,7 +42,11 @@ const DetailKegiatan = () => {
         // 2. Ambil data Sub Kegiatan
         const subKegPromise = fetch(`${API_URL}/api/subkegiatan/kegiatan/${id}`, { headers });
 
-        const [kegRes, subKegRes] = await Promise.all([kegPromise, subKegPromise]);
+        // 3. Ambil data Honorarium (semua)
+        const honPromise = fetch(`${API_URL}/api/honorarium`, { headers });
+
+        // Jalankan semua promise secara paralel
+        const [kegRes, subKegRes, honRes] = await Promise.all([kegPromise, subKegPromise, honPromise]);
 
         // Proses data Kegiatan
         if (!kegRes.ok) {
@@ -44,12 +55,52 @@ const DetailKegiatan = () => {
         const kegData = await kegRes.json();
         setKegiatan(kegData);
 
-        // Proses data Sub Kegiatan
+        // Proses data Sub Kegiatan & Honorarium
+        let allHonors = [];
+        if (!honRes.ok) {
+          console.warn("Gagal memuat data honorarium.");
+        } else {
+          allHonors = await honRes.json();
+        }
+
         if (!subKegRes.ok) {
           throw new Error('Gagal mengambil daftar sub kegiatan');
         }
         const subKegData = await subKegRes.json();
-        setSubKegiatans(subKegData);
+        
+        // --- MODIFIKASI PENTING ---
+        // Sisipkan data tarif ke dalam state subKegiatans
+        const processedSubKegiatans = subKegData.map(sub => {
+          const honor = allHonors.find(h => h.id_subkegiatan === sub.id);
+          return {
+            ...sub,
+            tarif: honor ? Number(honor.tarif) : null // Tambahkan tarif ke setiap sub
+          };
+        });
+        setSubKegiatans(processedSubKegiatans);
+        // --- AKHIR MODIFIKASI ---
+
+        // Hitung total honorarium
+        const mainHonor = allHonors.find(h => h.id_kegiatan === kegData.id);
+        let total = 0;
+        let mainTarif = 0;
+        let subTarif = 0;
+        
+        if (mainHonor) {
+          mainTarif = Number(mainHonor.tarif) || 0;
+          total += mainTarif;
+        }
+        
+        // Gunakan processedSubKegiatans yang sudah memiliki tarif
+        processedSubKegiatans.forEach(sub => {
+          if (sub.tarif) {
+            subTarif += sub.tarif;
+            total += sub.tarif;
+          }
+        });
+
+        // Set state honorarium
+        setHonorariumInfo({ total, mainTarif, subTarif });
 
       } catch (err) {
         setError(err.message);
@@ -62,7 +113,6 @@ const DetailKegiatan = () => {
   }, [id, authToken]);
 
   // Hitung persentase progress bar
-  // useMemo agar tidak dihitung ulang di setiap render
   const progressPercent = useMemo(() => {
     if (subKegiatans.length === 0) return 0;
     const doneCount = subKegiatans.filter(sub => sub.status === 'done').length;
@@ -87,7 +137,7 @@ const DetailKegiatan = () => {
 
       const updatedSubKegiatan = await response.json();
       
-      // Update state lokal agar UI dan progress bar otomatis refresh
+      // Update state lokal
       setSubKegiatans(prevSubs =>
         prevSubs.map(sub =>
           sub.id === updatedSubKegiatan.data.id ? updatedSubKegiatan.data : sub
@@ -117,7 +167,21 @@ const DetailKegiatan = () => {
       
       {/* 1. Detail Kegiatan Utama */}
       {kegiatan && (
-        <div className="bg-white shadow rounded-lg p-6 mb-6">
+        <div className="bg-white shadow rounded-lg p-6 mb-6 relative">
+          
+          {/* Badge Honorarium di Pojok Kanan Atas */}
+          {honorariumInfo.total > 0 && (
+            <div 
+              className="absolute top-4 right-6 bg-green-100 border border-green-300 rounded-lg p-3 text-right"
+              title={`Keg. Utama: ${honorariumInfo.mainTarif.toLocaleString('id-ID')} | Sub: ${honorariumInfo.subTarif.toLocaleString('id-ID')}`}
+            >
+              <span className="block text-sm font-medium text-green-700">Total Honorarium</span>
+              <span className="block text-2xl font-bold text-green-800">
+                Rp {Number(honorariumInfo.total).toLocaleString('id-ID')}
+              </span>
+            </div>
+          )}
+
           <h1 className="text-3xl font-bold mb-2">{kegiatan.nama_kegiatan}</h1>
           <p className="text-gray-600 text-sm mb-4">
             Tahun Anggaran: {kegiatan.tahun_anggaran}
@@ -155,7 +219,17 @@ const DetailKegiatan = () => {
             subKegiatans.map(sub => (
               <li key={sub.id} className="p-6 flex justify-between items-center">
                 <div>
-                  <h3 className="text-lg font-semibold">{sub.nama_sub_kegiatan}</h3>
+                  {/* --- MODIFIKASI DI SINI --- */}
+                  <div className="flex items-center gap-3 mb-1">
+                    <h3 className="text-lg font-semibold">{sub.nama_sub_kegiatan}</h3>
+                    {/* Tampilkan badge jika tarif ada (lebih dari 0) */}
+                    {sub.tarif && sub.tarif > 0 && (
+                      <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                        Rp {sub.tarif.toLocaleString('id-ID')}
+                      </span>
+                    )}
+                  </div>
+                  {/* --- AKHIR MODIFIKASI --- */}
                   <p className="text-gray-600 text-sm">{sub.deskripsi || '...'}</p>
                 </div>
                 <div>

@@ -185,13 +185,13 @@ const AddKegiatan = () => {
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <Link to="/admin/manage-kegiatan" className="text-indigo-600 hover:underline mb-4 inline-block">
-        &larr; Kembali ke Daftar Kegiatan
+        &larr; Kembali ke Daftar Survei/Sensus
       </Link>
-      <h1 className="text-3xl font-bold mb-6">Tambah Kegiatan Baru</h1>
+      <h1 className="text-3xl font-bold mb-6">Tambah Survei/Sensus Baru</h1>
 
       <div className="flex items-center justify-end mb-4">
         <label htmlFor="toggle-sub-kegiatan" className="mr-3 text-sm font-medium text-gray-900">
-          Tambahkan Sub Kegiatan
+          Tambahkan Kegiatan
         </label>
         <label className="relative inline-flex items-center cursor-pointer">
           <input 
@@ -208,10 +208,10 @@ const AddKegiatan = () => {
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Kolom 1: Detail Kegiatan Utama */}
         <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Detail Kegiatan Utama</h2>
+          <h2 className="text-xl font-semibold mb-4">Detail Survei/Sensus Utama</h2>
           
           <div className="mb-4">
-            <label htmlFor="nama_kegiatan" className="block text-sm font-medium text-gray-700">Nama Kegiatan</label>
+            <label htmlFor="nama_kegiatan" className="block text-sm font-medium text-gray-700">Nama Survei/Sensus</label>
             <input
               type="text"
               name="nama_kegiatan"
@@ -303,7 +303,7 @@ const AddKegiatan = () => {
               disabled={loading}
               className="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400"
             >
-              {loading ? 'Menyimpan...' : 'Simpan Kegiatan'}
+              {loading ? 'Menyimpan...' : 'Simpan Survei/Sensus'}
             </button>
           </div>
         </div>

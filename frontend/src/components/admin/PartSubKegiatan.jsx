@@ -35,12 +35,12 @@ const PartSubKegiatan = ({ subKegiatans, setSubKegiatans }) => {
 
   return (
     <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-xl font-semibold mb-4">Daftar Sub Kegiatan</h2>
+      <h2 className="text-xl font-semibold mb-4">Daftar Kegiatan</h2>
       
       <div className="space-y-4 mb-4">
         {subKegiatans.map((sub, index) => (
           <div key={sub.id} className="p-4 border rounded-md relative">
-            <h3 className="font-medium text-gray-800 mb-2">Sub Kegiatan #{index + 1}</h3>
+            <h3 className="font-medium text-gray-800 mb-2">Kegiatan #{index + 1}</h3>
             
             {/* Tombol Hapus */}
             {subKegiatans.length > 1 && ( // Hanya tampilkan jika lebih dari 1
@@ -57,7 +57,7 @@ const PartSubKegiatan = ({ subKegiatans, setSubKegiatans }) => {
             {/* Form Fields */}
             <div className="mb-2">
               <label htmlFor={`nama_sub_kegiatan_${sub.id}`} className="block text-sm font-medium text-gray-700">
-                Nama Sub Kegiatan (Wajib)
+                Nama Kegiatan (Wajib)
               </label>
               <input
                 type="text"
@@ -91,7 +91,7 @@ const PartSubKegiatan = ({ subKegiatans, setSubKegiatans }) => {
         onClick={addSubKegiatan}
         className="w-full py-2 px-4 border border-dashed border-gray-400 text-gray-700 rounded-md hover:bg-gray-50"
       >
-        + Tambah Sub Kegiatan Lain
+        + Tambah Kegiatan Lain
       </button>
     </div>
   );

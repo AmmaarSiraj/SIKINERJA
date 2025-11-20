@@ -115,10 +115,10 @@ const PartEditSubKegiatan = ({ kegiatanId }) => {
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.message || 'Gagal menambah sub kegiatan');
+        throw new Error(errData.message || 'Gagal menambah kegiatan');
       }
 
-      setSuccess('Sub kegiatan baru berhasil ditambahkan!');
+      setSuccess('kegiatan baru berhasil ditambahkan!');
       await fetchSubKegiatans(); // Ambil ulang daftar untuk mendapat ID asli
       
     } catch (err) {
@@ -138,7 +138,7 @@ const PartEditSubKegiatan = ({ kegiatanId }) => {
     
     const subToUpdate = subKegiatans.find(s => s.id === id);
     if (!subToUpdate || !subToUpdate.nama_sub_kegiatan) {
-      setError('Nama sub kegiatan tidak boleh kosong.');
+      setError('Nama Kegiatan tidak boleh kosong.');
       return;
     }
     
@@ -164,10 +164,10 @@ const PartEditSubKegiatan = ({ kegiatanId }) => {
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.message || 'Gagal update sub kegiatan');
+        throw new Error(errData.message || 'Gagal update Kegiatan');
       }
 
-      setSuccess(`Sub kegiatan #${id} berhasil diperbarui.`);
+      setSuccess(`Kegiatan #${id} berhasil diperbarui.`);
       // Set isLoading: false secara manual agar tidak ada "lompatan" UI
       setSubKegiatans(subs => 
         subs.map(s => s.id === id ? { ...s, isLoading: false } : s)
@@ -183,7 +183,7 @@ const PartEditSubKegiatan = ({ kegiatanId }) => {
 
   // 7. Handler untuk HAPUS sub-kegiatan (dari DB)
   const handleRemove = async (id) => {
-    if (!window.confirm('Apakah Anda yakin ingin menghapus sub-kegiatan ini?')) {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus Kegiatan ini?')) {
       return;
     }
     setError(null);
@@ -203,10 +203,10 @@ const PartEditSubKegiatan = ({ kegiatanId }) => {
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.message || 'Gagal menghapus sub kegiatan');
+        throw new Error(errData.message || 'Gagal menghapus Kegiatan');
       }
 
-      setSuccess(`Sub kegiatan #${id} berhasil dihapus.`);
+      setSuccess(`Kegiatan #${id} berhasil dihapus.`);
       // Hapus item dari state secara lokal
       removeLocalSubKegiatan(id);
       
@@ -221,7 +221,7 @@ const PartEditSubKegiatan = ({ kegiatanId }) => {
 
   return (
     <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-xl font-semibold mb-4">Kelola Sub Kegiatan</h2>
+      <h2 className="text-xl font-semibold mb-4">Kelola Kegiatan</h2>
       
       {/* Notifikasi Global */}
       {error && <div className="text-red-600 mb-4">Error: {error}</div>}
@@ -229,21 +229,21 @@ const PartEditSubKegiatan = ({ kegiatanId }) => {
       
       {/* Daftar Sub Kegiatan (Mirip PartSubKegiatan) */}
       <div className="space-y-4 mb-4">
-        {loading && <p>Memuat sub kegiatan...</p>}
+        {loading && <p>Memuat Kegiatan...</p>}
         
         {!loading && subKegiatans.length === 0 && (
-          <p className="text-gray-500 text-center py-4">Belum ada sub kegiatan.</p>
+          <p className="text-gray-500 text-center py-4">Belum ada Kegiatan.</p>
         )}
 
         {subKegiatans.map((sub, index) => (
           <div key={sub.id} className={`p-4 border rounded-md relative ${sub.isNew ? 'bg-indigo-50 border-indigo-200' : ''}`}>
             <h3 className="font-medium text-gray-800 mb-2">
-              Sub Kegiatan #{index + 1} {sub.isNew ? '(Baru)' : `(ID: ${sub.id})`}
+              Kegiatan #{index + 1} {sub.isNew ? '(Baru)' : `(ID: ${sub.id})`}
             </h3>
             
             <div className="mb-2">
               <label htmlFor={`nama_sub_kegiatan_${sub.id}`} className="block text-sm font-medium text-gray-700">
-                Nama Sub Kegiatan (Wajib)
+                Nama Kegiatan (Wajib)
               </label>
               <input
                 type="text"
@@ -323,7 +323,7 @@ const PartEditSubKegiatan = ({ kegiatanId }) => {
         disabled={loading}
         className="w-full py-2 px-4 border border-dashed border-gray-400 text-gray-700 rounded-md hover:bg-gray-50"
       >
-        + Tambah Sub Kegiatan Lain
+        + Tambah Kegiatan Lain
       </button>
     </div>
   );

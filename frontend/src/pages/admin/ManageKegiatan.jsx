@@ -43,7 +43,7 @@ const ManageKegiatan = () => {
   }, []);
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Apakah Anda yakin ingin menghapus kegiatan ini?')) {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus Survei/Sensus ini?')) {
       return;
     }
 
@@ -62,11 +62,11 @@ const ManageKegiatan = () => {
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.message || 'Gagal menghapus kegiatan');
+        throw new Error(errData.message || 'Gagal menghapus Survei/Sensus');
       }
 
       setKegiatan(prevKegiatan => prevKegiatan.filter(item => item.id !== id));
-      alert('Kegiatan berhasil dihapus');
+      alert('Survei/Sensus berhasil dihapus');
     } catch (err) {
       setError(err.message);
     }
@@ -78,7 +78,7 @@ const ManageKegiatan = () => {
   };
 
   if (loading) {
-    return <div className="p-8 text-center">Memuat data kegiatan...</div>;
+    return <div className="p-8 text-center">Memuat data Survei/Sensus...</div>;
   }
 
   if (error) {
@@ -88,12 +88,12 @@ const ManageKegiatan = () => {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Manajemen Kegiatan</h1>
+        <h1 className="text-3xl font-bold">Manajemen Survei/Sensus</h1>
         <Link
           to="/admin/manage-kegiatan/tambah"
           className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
         >
-          Tambah Kegiatan
+          Tambah Survei/Sensus
         </Link>
       </div>
 
@@ -102,7 +102,7 @@ const ManageKegiatan = () => {
           <thead className="bg-gray-50">
             <tr>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Nama Kegiatan
+                Nama Survei/Sensus
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Tahun Anggaran
@@ -165,7 +165,7 @@ const ManageKegiatan = () => {
             ) : (
               <tr>
                 <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">
-                  Belum ada data kegiatan.
+                  Belum ada data Survei/Sensus.
                 </td>
               </tr>
             )}

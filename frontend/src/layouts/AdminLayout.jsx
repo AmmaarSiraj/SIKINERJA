@@ -52,7 +52,7 @@ const Sidebar = () => (
             to="/admin/manage-kegiatan"
             className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors"
           >
-            Manajemen Kegiatan
+            Manajemen Survei/Sensus
           </Link>
         </li>
         <li>

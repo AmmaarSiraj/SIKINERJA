@@ -104,10 +104,10 @@ const EditKegiatan = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Gagal memperbarui kegiatan');
+        throw new Error(data.message || 'Gagal memperbarui Survei/Sensus');
       }
 
-      setSuccessMessage('Data kegiatan utama berhasil diperbarui!');
+      setSuccessMessage('Data Survei/Sensus utama berhasil diperbarui!');
       
       setTimeout(() => {
         setSuccessMessage(null);
@@ -124,14 +124,14 @@ const EditKegiatan = () => {
   };
 
   if (fetchLoading) {
-    return <div className="text-center p-8">Memuat data kegiatan...</div>;
+    return <div className="text-center p-8">Memuat data Survei/Sensus...</div>;
   }
 
   return (
     // Container dilebarkan menjadi max-w-6xl
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Edit Kegiatan</h1>
+        <h1 className="text-3xl font-bold text-gray-800">Edit Survei/Sensus</h1>
         <Link
           to="/admin/manage-kegiatan"
           className="text-sm text-indigo-600 hover:underline"
@@ -154,7 +154,7 @@ const EditKegiatan = () => {
             {/* ... (form input untuk nama_kegiatan, deskripsi, dll tidak berubah) ... */}
             <div className="mb-4">
               <label htmlFor="nama_kegiatan" className="block text-gray-700 text-sm font-bold mb-2">
-                Nama Kegiatan <span className="text-red-500">*</span>
+                Nama Survei/Sensus <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -228,7 +228,7 @@ const EditKegiatan = () => {
                 disabled={loading || fetchLoading}
                 className={`bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${loading || fetchLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                {loading ? 'Menyimpan...' : 'Simpan Perubahan Kegiatan'}
+                {loading ? 'Menyimpan...' : 'Simpan Perubahan Survei/Sensus'}
               </button>
             </div>
           </form>

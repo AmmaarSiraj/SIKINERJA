@@ -150,7 +150,7 @@ const DetailKegiatan = () => {
 
   // Tampilan loading
   if (loading) {
-    return <div className="p-8 text-center">Memuat data kegiatan...</div>;
+    return <div className="p-8 text-center">Memuat data Survei/Sensus...</div>;
   }
 
   // Tampilan error
@@ -162,7 +162,7 @@ const DetailKegiatan = () => {
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <Link to="/admin/manage-kegiatan" className="text-indigo-600 hover:underline mb-4 inline-block">
-        &larr; Kembali ke Daftar Kegiatan
+        &larr; Kembali ke Daftar Survei/Sensus
       </Link>
       
       {/* 1. Detail Kegiatan Utama */}
@@ -213,7 +213,7 @@ const DetailKegiatan = () => {
 
       {/* 3. Daftar Sub Kegiatan */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        <h2 className="text-xl font-semibold p-6">Tahapan Sub Kegiatan</h2>
+        <h2 className="text-xl font-semibold p-6">Tahapan Kegiatan</h2>
         <ul className="divide-y divide-gray-200">
           {subKegiatans.length > 0 ? (
             subKegiatans.map(sub => (
@@ -253,7 +253,7 @@ const DetailKegiatan = () => {
             ))
           ) : (
             <li className="p-6 text-center text-gray-500">
-              Belum ada sub-kegiatan untuk kegiatan ini.
+              Belum ada kegiatan untuk Survei/Sensus ini.
             </li>
           )}
         </ul>

@@ -17,6 +17,13 @@ import DetailKegiatan from './pages/admin/DetailKegiatan';
 import Penugasan from './pages/admin/Penugasan';
 import DetailPenugasan from './pages/admin/DetailPenugasan';
 import LengkapiProfile from './pages/LengkapiProfile';
+import DaftarPengajuanMitra from './pages/admin/DaftarPengajuanMitra';
+import DetailPengajuanMitra from './pages/admin/DetailPengajuanMitra';
+import DaftarLaporan from './pages/admin/DaftarLaporan';
+import SettingLaporan from './pages/admin/SettingLaporan';
+import BuatTemplate from './pages/admin/BuatTemplate';
+import DetailKegiatanUser from './pages/DetailKegiatanUser';
+
 // Import Layout
 import Layout from './layouts/Layout';
 import AdminLayout from './layouts/AdminLayout'; // <-- IMPORT LAYOUT BARU
@@ -35,13 +42,14 @@ function AppRoutes() {
         <Route element={<Layout />}>
           <Route path="/home" element={<Home />} />
           <Route path="/lengkapi-profil" element={<LengkapiProfile />} />
+          <Route path="/kegiatan/:id" element={<DetailKegiatanUser />} />
         </Route>
 
         {/* === Rute Admin (menggunakan AdminLayout BARU) === */}
         <Route element={<AdminLayout />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/manage-users" element={<ManageUsers />} />
-          <Route path="/admin/add-user" element={<AddUser />} />
+          <Route path="/admin/users/add" element={<AddUser />} />
           <Route path="/admin/edit-user/:id" element={<EditUser />} />
           <Route path="/admin/users/:id/detail" element={<DetailUser />} />
           <Route path="/admin/manage-kegiatan" element={<ManageKegiatan />} />
@@ -50,6 +58,11 @@ function AppRoutes() {
           <Route path="/admin/manage-kegiatan/detail/:id" element={<DetailKegiatan />} />
           <Route path="/admin/penugasan" element={<Penugasan />} />
           <Route path="/admin/penugasan/detail/:id" element={<DetailPenugasan />} />
+          <Route path="/admin/pengajuan-mitra" element={<DaftarPengajuanMitra />} />
+          <Route path="/admin/pengajuan-mitra/:id" element={<DetailPengajuanMitra />} />
+          <Route path="/admin/laporan" element={<DaftarLaporan />} />
+          <Route path="/admin/laporan/setting/:id_kegiatan" element={<SettingLaporan />} />
+          <Route path="/admin/laporan/buat" element={<BuatTemplate />} />
         </Route>
       </Routes>
     </BrowserRouter>

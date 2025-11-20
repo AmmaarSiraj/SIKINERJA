@@ -4,16 +4,17 @@ const router = express.Router();
 const {
   createPengajuan,
   getPengajuanByUserId,
+  getAllPengajuan,    
+  getPengajuanById,   
+  approvePengajuan
 } = require('../controllers/pengajuanMitraController');
-// const authMiddleware = require('../midleware/authMiddleware'); // Dihapus
 
-// User yang login (role apa saja) bisa membuat pengajuan
-router.post('/', createPengajuan); // authMiddleware dihapus
+router.post('/', createPengajuan);
+router.get('/user/:id_user', getPengajuanByUserId);
 
-// User yang login bisa mengecek status pengajuannya sendiri
-router.get(
-  '/user/:id_user',
-  getPengajuanByUserId // authMiddleware dihapus
-);
+// Route BARU untuk Admin
+router.get('/', getAllPengajuan);     
+router.get('/:id', getPengajuanById);      
+router.post('/:id/approve', approvePengajuan);
 
 module.exports = router;

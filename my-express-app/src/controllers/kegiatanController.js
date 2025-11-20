@@ -93,9 +93,23 @@ const createKegiatan = async (req, res) => {
 
 const getAllKegiatan = async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT * FROM kegiatan ORDER BY created_at DESC'
-    );
+    // Query dimodifikasi untuk:
+    // 1. Join ke tabel penugasan (untuk dapat id_penugasan & max mitra)
+    // 2. Join ke kelompok_penugasan (untuk hitung jumlah yang sudah terisi)
+    const sql = `
+      SELECT 
+        k.*,
+        p.id AS id_penugasan,
+        p.jumlah_max_mitra,
+        COUNT(kp.id) AS jumlah_terisi
+      FROM kegiatan k
+      LEFT JOIN penugasan p ON k.id = p.id_kegiatan
+      LEFT JOIN kelompok_penugasan kp ON p.id = kp.id_penugasan
+      GROUP BY k.id
+      ORDER BY k.created_at DESC
+    `;
+
+    const [rows] = await pool.query(sql);
     return res.json(rows);
   } catch (err) {
     console.error(err);
@@ -107,7 +121,21 @@ const getKegiatanById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [rows] = await pool.query('SELECT * FROM kegiatan WHERE id = ?', [id]);
+    // Query UPDATE: Join ke penugasan & hitung jumlah_terisi
+    const sql = `
+      SELECT 
+        k.*,
+        p.id AS id_penugasan,
+        p.jumlah_max_mitra,
+        COUNT(kp.id) AS jumlah_terisi
+      FROM kegiatan k
+      LEFT JOIN penugasan p ON k.id = p.id_kegiatan
+      LEFT JOIN kelompok_penugasan kp ON p.id = kp.id_penugasan
+      WHERE k.id = ?
+      GROUP BY k.id
+    `;
+
+    const [rows] = await pool.query(sql, [id]);
 
     if (!rows || rows.length === 0) {
       return res.status(404).json({ message: 'Kegiatan tidak ditemukan' });

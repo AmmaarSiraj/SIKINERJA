@@ -1,11 +1,11 @@
-// Di dalam frontend/src/App.jsx (atau file routing Anda)
+// Di dalam frontend/src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 // Import Halaman
 import Login from './auth/Login';
 import Register from './auth/Register';
 import Home from './pages/Home';
-import AdminDashboard from './pages/admin/Dashboard'; // 
+import AdminDashboard from './pages/admin/Dashboard'; 
 import ManageUsers from './pages/admin/ManageUsers';
 import AddUser from './pages/admin/AddUser';
 import EditUser from './pages/admin/EditUser';
@@ -16,6 +16,9 @@ import DetailUser from './pages/admin/DetailUser';
 import DetailKegiatan from './pages/admin/DetailKegiatan';
 import Penugasan from './pages/admin/Penugasan';
 import DetailPenugasan from './pages/admin/DetailPenugasan';
+// --- 1. IMPORT KOMPONEN BARU ---
+import TambahPenugasan from './pages/admin/TambahPenugasan'; 
+
 import LengkapiProfile from './pages/LengkapiProfile';
 import DaftarPengajuanMitra from './pages/admin/DaftarPengajuanMitra';
 import DetailPengajuanMitra from './pages/admin/DetailPengajuanMitra';
@@ -23,12 +26,13 @@ import DaftarLaporan from './pages/admin/DaftarLaporan';
 import SettingLaporan from './pages/admin/SettingLaporan';
 import BuatTemplate from './pages/admin/BuatTemplate';
 import DetailKegiatanUser from './pages/DetailKegiatanUser';
+import DetailMitra from './pages/admin/DetailMitra';
 
 // Import Layout
 import Layout from './layouts/Layout';
-import AdminLayout from './layouts/AdminLayout'; // <-- IMPORT LAYOUT BARU
+import AdminLayout from './layouts/AdminLayout'; 
 
-import RequireAuth from './components/RequireAuth'; // [cite: 13]
+import RequireAuth from './components/RequireAuth'; 
 
 function AppRoutes() {
   return (
@@ -45,7 +49,7 @@ function AppRoutes() {
           <Route path="/kegiatan/:id" element={<DetailKegiatanUser />} />
         </Route>
 
-        {/* === Rute Admin (menggunakan AdminLayout BARU) === */}
+        {/* === Rute Admin (menggunakan AdminLayout) === */}
         <Route element={<AdminLayout />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/manage-users" element={<ManageUsers />} />
@@ -56,13 +60,19 @@ function AppRoutes() {
           <Route path="/admin/manage-kegiatan/tambah" element={<AddKegiatan />} />
           <Route path="/admin/manage-kegiatan/edit/:id" element={<EditKegiatan />} />
           <Route path="/admin/manage-kegiatan/detail/:id" element={<DetailKegiatan />} />
+          
+          {/* --- Manajemen Penugasan --- */}
           <Route path="/admin/penugasan" element={<Penugasan />} />
+          {/* --- 2. RUTE BARU DITAMBAHKAN DI SINI --- */}
+          <Route path="/admin/penugasan/tambah" element={<TambahPenugasan />} />
           <Route path="/admin/penugasan/detail/:id" element={<DetailPenugasan />} />
+
           <Route path="/admin/pengajuan-mitra" element={<DaftarPengajuanMitra />} />
           <Route path="/admin/pengajuan-mitra/:id" element={<DetailPengajuanMitra />} />
           <Route path="/admin/laporan" element={<DaftarLaporan />} />
           <Route path="/admin/laporan/setting/:id_kegiatan" element={<SettingLaporan />} />
           <Route path="/admin/laporan/buat" element={<BuatTemplate />} />
+          <Route path="/admin/mitra/:id" element={<DetailMitra />} />
         </Route>
       </Routes>
     </BrowserRouter>

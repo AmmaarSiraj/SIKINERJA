@@ -1,28 +1,39 @@
 const express = require('express');
 const router = express.Router();
+
+// Import Controller
 const {
     createMitra,
     getAllMitra,
     getMitraById,
-    getMitraByUserId,
     updateMitra,
-    deleteMitra
+    deleteMitra,
+    importMitra,
 } = require('../controllers/mitraController');
 
-// --- UBAH BAGIAN INI ---
-// Hapus baris lama: const { protect, admin } = require('../midleware/authMiddleware');
-// Ganti dengan ini:
+// Import Middleware Auth
 const authMiddleware = require('../midleware/authMiddleware');
-// ----------------------
 
-// --- LALU TAMBAHKAN "authMiddleware." DI DEPAN protect & admin ---
+// Import Middleware Upload
+const uploadMitra = require('../midleware/uploadMitra'); 
+
+// --- DEFINISI RUTE ---
+
+// Rute Import (Letakkan di atas)
+router.post('/import', 
+    authMiddleware.protect, 
+    authMiddleware.admin, 
+    uploadMitra.single('file'), 
+    importMitra
+);
+
+// Rute CRUD Standar
 router.post('/', authMiddleware.protect, createMitra);
 router.get('/', authMiddleware.protect, authMiddleware.admin, getAllMitra);
 router.get('/:id', authMiddleware.protect, getMitraById);
-router.get('/user/:id_user', authMiddleware.protect, getMitraByUserId); 
 router.put('/:id', authMiddleware.protect, authMiddleware.admin, updateMitra);
 router.delete('/:id', authMiddleware.protect, authMiddleware.admin, deleteMitra);
-router.get('/un/user/:id_user', getMitraByUserId);
-// -----------------------------------------------------------------
+
+// CATATAN: Rute getMitraByUserId sudah DIHAPUS karena id_user sudah tidak ada di tabel mitra.
 
 module.exports = router;

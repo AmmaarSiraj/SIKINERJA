@@ -1,37 +1,33 @@
-// src/controllers/honorariumController.js
 const { pool } = require('../config/db');
 
-// --- Query JOIN ---
-// Query ini akan mengambil data honorarium dan menggabungkannya
-// dengan tabel kegiatan atau subkegiatan untuk mendapatkan "nama"-nya.
-// COALESCE akan memilih nama pertama yang tidak NULL (nama_kegiatan atau nama_sub_kegiatan)
-// dan menampilkannya sebagai 'nama_pekerjaan'.
+// Query JOIN Baru: Langsung ke subkegiatan dan satuan
 const selectQuery = `
   SELECT 
     h.id AS id_honorarium,
     h.tarif,
-    k.id AS id_kegiatan,
-    k.nama_kegiatan,
-    s.id AS id_subkegiatan,
+    h.id_subkegiatan,
+    h.id_satuan,
+    h.basis_volume,
     s.nama_sub_kegiatan,
-    COALESCE(k.nama_kegiatan, s.nama_sub_kegiatan, 'N/A') AS nama_pekerjaan
+    k.nama_kegiatan,
+    sat.nama_satuan,
+    sat.alias AS satuan_alias
   FROM honorarium AS h
-  LEFT JOIN kegiatan AS k ON h.id_kegiatan = k.id
-  LEFT JOIN subkegiatan AS s ON h.id_subkegiatan = s.id
+  JOIN subkegiatan AS s ON h.id_subkegiatan = s.id
+  JOIN kegiatan AS k ON s.id_kegiatan = k.id
+  JOIN satuan_kegiatan AS sat ON h.id_satuan = sat.id
 `;
 
-// GET /api/honorarium
 exports.getAllHonorarium = async (req, res) => {
   try {
     const [rows] = await pool.query(`${selectQuery} ORDER BY h.id DESC`);
     res.status(200).json(rows);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Terjadi kesalahan pada server.', details: error.message });
+    console.error("Error getAllHonorarium:", error); // Log error ke terminal
+    res.status(500).json({ error: error.message });
   }
 };
 
-// GET /api/honorarium/:id
 exports.getHonorariumById = async (req, res) => {
   const { id } = req.params;
   try {
@@ -42,76 +38,49 @@ exports.getHonorariumById = async (req, res) => {
     res.status(200).json(rows[0]);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Terjadi kesalahan pada server.', details: error.message });
+    res.status(500).json({ error: error.message });
   }
 };
 
-// POST /api/honorarium
 exports.createHonorarium = async (req, res) => {
-  const { id_kegiatan, id_subkegiatan, tarif } = req.body;
+  // Input sekarang menggunakan id_subkegiatan, id_satuan, basis_volume
+  const { id_subkegiatan, tarif, id_satuan, basis_volume } = req.body;
 
-  // 1. Validasi Input
-  if (!tarif) {
-    return res.status(400).json({ error: 'Tarif wajib diisi.' });
-  }
-  if (!id_kegiatan && !id_subkegiatan) {
-    return res.status(400).json({ error: 'Harus memilih salah satu: ID Kegiatan atau ID Sub Kegiatan.' });
-  }
-  // Cek ini juga di API, meskipun sudah ada trigger di DB
-  if (id_kegiatan && id_subkegiatan) {
-    return res.status(400).json({ error: 'Tidak boleh mengisi id_kegiatan dan id_subkegiatan sekaligus.' });
+  if (!id_subkegiatan || !tarif || !id_satuan) {
+    return res.status(400).json({ error: 'ID Sub Kegiatan, Tarif, dan Satuan wajib diisi.' });
   }
 
   try {
-    const sql = `
-      INSERT INTO honorarium (id_kegiatan, id_subkegiatan, tarif) 
-      VALUES (?, ?, ?)
-    `;
-    
-    // Kirim null jika salah satu ID tidak terdefinisi
-    const [result] = await pool.query(sql, [
-      id_kegiatan || null,
-      id_subkegiatan || null,
-      tarif
-    ]);
+    // Cek apakah sub kegiatan ini sudah punya tarif?
+    const [existing] = await pool.query('SELECT id FROM honorarium WHERE id_subkegiatan = ?', [id_subkegiatan]);
+    if (existing.length > 0) {
+        return res.status(400).json({ error: 'Sub Kegiatan ini sudah memiliki tarif honorarium.' });
+    }
 
-    // Ambil data yang baru saja dibuat
+    const sql = `INSERT INTO honorarium (id_subkegiatan, tarif, id_satuan, basis_volume) VALUES (?, ?, ?, ?)`;
+    const valVolume = basis_volume || 1; 
+    
+    const [result] = await pool.query(sql, [id_subkegiatan, tarif, id_satuan, valVolume]);
+
     const [rows] = await pool.query(`${selectQuery} WHERE h.id = ?`, [result.insertId]);
     res.status(201).json(rows[0]);
 
   } catch (error) {
-    // Menangkap error dari Trigger
-    if (error.code === 'ER_SIGNAL_EXCEPTION') {
-        return res.status(400).json({ error: error.sqlMessage });
-    }
     console.error(error);
-    res.status(500).json({ error: 'Terjadi kesalahan pada server.', details: error.message });
+    res.status(500).json({ error: error.message });
   }
 };
 
-// PUT /api/honorarium/:id
 exports.updateHonorarium = async (req, res) => {
   const { id } = req.params;
-  const { id_kegiatan, id_subkegiatan, tarif } = req.body;
-
-  // Cek ini juga di API, meskipun sudah ada trigger di DB
-  if (id_kegiatan && id_subkegiatan) {
-    return res.status(400).json({ error: 'Tidak boleh mengisi id_kegiatan dan id_subkegiatan sekaligus.' });
-  }
+  const { id_subkegiatan, tarif, id_satuan, basis_volume } = req.body;
 
   const updates = {};
+  if (id_subkegiatan !== undefined) updates.id_subkegiatan = id_subkegiatan;
   if (tarif !== undefined) updates.tarif = tarif;
-  
-  // Logika update: Jika user mengirim id_kegiatan, 
-  // kita harus pastikan id_subkegiatan di-set ke NULL, begitu pula sebaliknya.
-  if (id_kegiatan !== undefined) {
-    updates.id_kegiatan = id_kegiatan;
-    updates.id_subkegiatan = null;
-  } else if (id_subkegiatan !== undefined) {
-    updates.id_subkegiatan = id_subkegiatan;
-    updates.id_kegiatan = null;
-  }
-  
+  if (id_satuan !== undefined) updates.id_satuan = id_satuan;
+  if (basis_volume !== undefined) updates.basis_volume = basis_volume;
+
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: 'Tidak ada data untuk diperbarui.' });
   }
@@ -123,21 +92,15 @@ exports.updateHonorarium = async (req, res) => {
       return res.status(404).json({ error: 'Data honorarium tidak ditemukan.' });
     }
     
-    // Ambil data yang baru saja di-update
     const [rows] = await pool.query(`${selectQuery} WHERE h.id = ?`, [id]);
     res.status(200).json(rows[0]);
 
   } catch (error) {
-    // Menangkap error dari Trigger
-    if (error.code === 'ER_SIGNAL_EXCEPTION') {
-        return res.status(400).json({ error: error.sqlMessage });
-    }
     console.error(error);
-    res.status(500).json({ error: 'Terjadi kesalahan pada server.', details: error.message });
+    res.status(500).json({ error: error.message });
   }
 };
 
-// DELETE /api/honorarium/:id
 exports.deleteHonorarium = async (req, res) => {
   const { id } = req.params;
   try {
@@ -148,6 +111,6 @@ exports.deleteHonorarium = async (req, res) => {
     res.status(200).json({ message: 'Data honorarium berhasil dihapus.' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Terjadi kesalahan pada server.', details: error.message });
+    res.status(500).json({ error: error.message });
   }
 };

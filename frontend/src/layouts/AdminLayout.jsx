@@ -68,7 +68,7 @@ const Sidebar = () => (
             to="/admin/pengajuan-mitra"
             className="block py-2 px-4 rounded hover:bg-gray-700 transition-colors"
           >
-            Pengajuan Mitra
+            Menejemen Mitra
           </Link>
         </li>
         <li>

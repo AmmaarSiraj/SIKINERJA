@@ -86,3 +86,41 @@ exports.deleteSubKegiatan = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+exports.getSubKegiatanById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Query langsung ke tabel subkegiatan
+    const sql = 'SELECT * FROM subkegiatan WHERE id = ?';
+    const [rows] = await pool.query(sql, [id]);
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: 'Sub Kegiatan tidak ditemukan' });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.getAllSubKegiatan = async (req, res) => {
+  try {
+    const sql = `
+      SELECT 
+        s.id, 
+        s.nama_sub_kegiatan, 
+        s.deskripsi, 
+        k.nama_kegiatan 
+      FROM subkegiatan s
+      JOIN kegiatan k ON s.id_kegiatan = k.id
+      ORDER BY k.nama_kegiatan ASC, s.nama_sub_kegiatan ASC
+    `;
+    const [rows] = await pool.query(sql);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};

@@ -1,9 +1,20 @@
+// src/pages/admin/AddUser.jsx
 import { useState } from 'react';
 import axios from 'axios';
-import { Link, useNavigate } from 'react-router-dom'; // 1. Import useNavigate
+import { Link, useNavigate } from 'react-router-dom';
+// 1. IMPORT ICON
+import { 
+  FaArrowLeft, 
+  FaUser, 
+  FaEnvelope, 
+  FaLock, 
+  FaUserShield, 
+  FaPlus, 
+  FaExclamationCircle 
+} from 'react-icons/fa';
 
 const AddUser = () => {
-  const navigate = useNavigate(); // 2. Inisialisasi hook navigasi
+  const navigate = useNavigate(); 
   
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -11,23 +22,20 @@ const AddUser = () => {
   const [role, setRole] = useState('user');
   
   const [error, setError] = useState('');
-  
-  // State 'success' sudah tidak diperlukan karena kita akan langsung redirect
-  // const [success, setSuccess] = useState(''); 
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    // setSuccess(''); // Tidak perlu lagi
+    setSubmitting(true);
 
-    // Validasi sederhana di frontend
     if (!username || !email || !password) {
-      setError('Username, Email, dan Password wajib diisi.');
+      setError('Semua field wajib diisi.');
+      setSubmitting(false);
       return;
     }
 
     try {
-      // Panggil endpoint register dari backend Anda
       await axios.post(
         'http://localhost:3000/api/users/register', 
         {
@@ -38,125 +46,130 @@ const AddUser = () => {
         }
       );
 
-      // 3. JIKA SUKSES: Langsung arahkan (redirect) kembali ke halaman manage-users
       navigate('/admin/manage-users');
 
     } catch (err) {
-      // Tangani error dari API (seperti email duplikat)
       console.error("Gagal menambah user:", err);
       setError(err.response?.data?.message || "Gagal menambah user. Silakan coba lagi.");
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="container mx-auto max-w-2xl">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Tambah User Baru</h1>
+    <div className="max-w-2xl mx-auto w-full">
+      
+      {/* Tombol Kembali */}
+      <div className="mb-6">
         <Link 
           to="/admin/manage-users" 
-          className="text-blue-600 hover:text-blue-800"
+          className="inline-flex items-center gap-2 text-gray-500 hover:text-[#1A2A80] transition font-medium"
         >
-          &larr; Kembali ke Daftar User
+          <FaArrowLeft size={14} /> Kembali ke Manajemen User
         </Link>
       </div>
 
-      <form 
-        onSubmit={handleSubmit} 
-        className="bg-white p-8 rounded-lg shadow-md space-y-6"
-      >
-        {/* Hapus pesan Sukses (karena kita langsung redirect) */}
-        {/* {success && ( ... )} */}
-
-        {/* Pesan Error */}
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-            {error}
-          </div>
-        )}
-
-        {/* Username */}
-        <div>
-          <label 
-            htmlFor="username" 
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Username
-          </label>
-          <input
-            type="text"
-            id="username"
-            className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
+      {/* Card Form */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        
+        {/* Header Card */}
+        <div className="px-8 py-6 bg-gray-50/50 border-b border-gray-100">
+            <h2 className="text-xl font-bold text-gray-800">Tambah User Baru</h2>
+            <p className="text-sm text-gray-500 mt-1">Buat akun untuk admin atau mitra baru.</p>
         </div>
 
-        {/* Email */}
-        <div>
-          <label 
-            htmlFor="email" 
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Alamat Email
-          </label>
-          <input
-            type="email"
-            id="email"
-            className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            placeholder="email@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </div>
+        <div className="p-8">
+            {error && (
+                <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-6 border border-red-100 text-sm flex items-center gap-2">
+                    <FaExclamationCircle /> {error}
+                </div>
+            )}
 
-        {/* Password */}
-        <div>
-          <label 
-            htmlFor="password" 
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Password
-          </label>
-          <input
-            type="password"
-            id="password"
-            className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            placeholder="Minimal 6 karakter"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
+            <form onSubmit={handleSubmit} className="space-y-6">
+                
+                {/* Username */}
+                <div>
+                    <label htmlFor="username" className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2">
+                        <FaUser className="text-[#1A2A80]" /> Username
+                    </label>
+                    <input
+                        type="text"
+                        id="username"
+                        className="block w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] transition outline-none bg-gray-50 focus:bg-white"
+                        placeholder="Contoh: budi_santoso"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        required
+                    />
+                </div>
 
-        {/* Role */}
-        <div>
-          <label 
-            htmlFor="role" 
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Role
-          </label>
-          <select
-            id="role"
-            className="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-          >
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
+                {/* Email */}
+                <div>
+                    <label htmlFor="email" className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2">
+                        <FaEnvelope className="text-[#1A2A80]" /> Alamat Email
+                    </label>
+                    <input
+                        type="email"
+                        id="email"
+                        className="block w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] transition outline-none bg-gray-50 focus:bg-white"
+                        placeholder="email@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                    />
+                </div>
 
-        {/* Tombol Submit */}
-        <div>
-          <button
-            type="submit"
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            Simpan User
-          </button>
+                {/* Password */}
+                <div>
+                    <label htmlFor="password" className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2">
+                        <FaLock className="text-[#1A2A80]" /> Password
+                    </label>
+                    <input
+                        type="password"
+                        id="password"
+                        className="block w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] transition outline-none bg-gray-50 focus:bg-white"
+                        placeholder="Minimal 6 karakter"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                    />
+                </div>
+
+                {/* Role */}
+                <div>
+                    <label htmlFor="role" className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2">
+                        <FaUserShield className="text-[#1A2A80]" /> Role / Hak Akses
+                    </label>
+                    <div className="relative">
+                        <select
+                            id="role"
+                            className="block w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] transition outline-none bg-white appearance-none"
+                            value={role}
+                            onChange={(e) => setRole(e.target.value)}
+                        >
+                            <option value="user">User (Mitra)</option>
+                            <option value="admin">Admin (Pengelola)</option>
+                        </select>
+                        {/* Custom Arrow */}
+                        <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Submit Button */}
+                <div className="pt-4 border-t border-gray-100 flex justify-end">
+                    <button
+                        type="submit"
+                        disabled={submitting}
+                        className="flex items-center gap-2 bg-[#1A2A80] hover:bg-blue-900 text-white font-bold py-3 px-8 rounded-xl shadow-lg transform active:scale-95 transition disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                        {submitting ? 'Menyimpan...' : <><FaPlus /> Tambah User</>}
+                    </button>
+                </div>
+
+            </form>
         </div>
-      </form>
+      </div>
     </div>
   );
 };

@@ -1,44 +1,53 @@
+// src/components/admin/PartEditSubKegiatan.jsx
 import React, { useState, useEffect } from 'react';
+import { 
+  FaTrash, 
+  FaPlus, 
+  FaCalendarAlt, 
+  FaBullhorn, 
+  FaClipboardList, 
+  FaAlignLeft,
+  FaSave,
+  FaSyncAlt,
+  FaTimes
+} from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-/**
- * Komponen ini mengelola (fetch, create, update, delete)
- * sub-kegiatan yang terkait dengan sebuah kegiatanId.
- *
- * Props:
- * - kegiatanId: ID dari kegiatan induk
- */
+const formatDateForInput = (isoDate) => {
+  if (!isoDate) return '';
+  try {
+    return new Date(isoDate).toISOString().split('T')[0];
+  } catch (error) {
+    return '';
+  }
+};
+
 const PartEditSubKegiatan = ({ kegiatanId }) => {
   const [subKegiatans, setSubKegiatans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  // Fungsi untuk mengambil data sub-kegiatan
   const fetchSubKegiatans = async () => {
     if (!kegiatanId) return;
     setLoading(true);
-    setError(null);
     try {
       const token = localStorage.getItem('token');
-      if (!token) throw new Error('Token tidak ditemukan');
-
-      // Asumsi endpoint: GET /api/subkegiatan/kegiatan/:kegiatanId
       const response = await fetch(`${API_URL}/api/subkegiatan/kegiatan/${kegiatanId}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || 'Gagal memuat sub-kegiatan');
-      }
-
       const data = await response.json();
-      // Tambahkan properti isNew: false untuk membedakan dengan item baru
-      const existingSubs = (data.data || data).map(sub => ({ ...sub, isNew: false, isLoading: false }));
-      setSubKegiatans(existingSubs);
-
+      const formattedData = (data.data || data).map(sub => ({
+        ...sub,
+        isNew: false,
+        isLoading: false,
+        tanggal_mulai: formatDateForInput(sub.tanggal_mulai),
+        tanggal_selesai: formatDateForInput(sub.tanggal_selesai),
+        open_req: formatDateForInput(sub.open_req),
+        close_req: formatDateForInput(sub.close_req),
+      }));
+      setSubKegiatans(formattedData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -46,285 +55,254 @@ const PartEditSubKegiatan = ({ kegiatanId }) => {
     }
   };
 
-  // 1. Ambil data saat komponen dimuat
   useEffect(() => {
     fetchSubKegiatans();
   }, [kegiatanId]);
 
-  // 2. Handler untuk mengubah input
   const handleChange = (id, e) => {
     const { name, value } = e.target;
     setSubKegiatans(subs =>
       subs.map(sub => (sub.id === id ? { ...sub, [name]: value } : sub))
     );
-    // Hapus pesan error/sukses jika user mulai mengetik
     if (error) setError(null);
     if (success) setSuccess(null);
   };
 
-  // 3. Handler untuk menambah field sub-kegiatan baru (di lokal)
   const addSubKegiatan = () => {
     setSubKegiatans([
       ...subKegiatans,
       { 
-        id: Date.now(), // ID sementara untuk React key
+        id: Date.now(), 
         nama_sub_kegiatan: '', 
         deskripsi: '',
-        isNew: true, // Tandai sebagai item baru
+        periode: new Date().getFullYear().toString(),
+        tanggal_mulai: '',
+        tanggal_selesai: '',
+        open_req: '',
+        close_req: '',
+        isNew: true, 
         isLoading: false
       } 
     ]);
   };
 
-  // 4. Handler untuk menghapus field sub-kegiatan baru (dari lokal)
   const removeLocalSubKegiatan = (id) => {
     setSubKegiatans(subKegiatans.filter(sub => sub.id !== id));
   };
   
-  // 5. Handler untuk MENYIMPAN sub-kegiatan baru
   const handleSaveNew = async (tempId) => {
-    setError(null);
-    setSuccess(null);
-    
     const subToSave = subKegiatans.find(s => s.id === tempId);
-    if (!subToSave || !subToSave.nama_sub_kegiatan) {
-      setError('Nama sub kegiatan baru tidak boleh kosong.');
-      return;
-    }
-
-    setSubKegiatans(subs => 
-      subs.map(s => s.id === tempId ? { ...s, isLoading: true } : s)
-    );
-
+    setSubKegiatans(subs => subs.map(s => s.id === tempId ? { ...s, isLoading: true } : s));
     try {
       const token = localStorage.getItem('token');
       const payload = {
+        kegiatan_id: parseInt(kegiatanId, 10),
         nama_sub_kegiatan: subToSave.nama_sub_kegiatan,
         deskripsi: subToSave.deskripsi,
-        kegiatan_id: parseInt(kegiatanId, 10),
+        periode: subToSave.periode,
+        tanggal_mulai: subToSave.tanggal_mulai,
+        tanggal_selesai: subToSave.tanggal_selesai,
+        open_req: subToSave.open_req,
+        close_req: subToSave.close_req
       };
-
-      const response = await fetch(`${API_URL}/api/subkegiatan`, {
+      await fetch(`${API_URL}/api/subkegiatan`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || 'Gagal menambah kegiatan');
-      }
-
-      setSuccess('kegiatan baru berhasil ditambahkan!');
-      await fetchSubKegiatans(); // Ambil ulang daftar untuk mendapat ID asli
-      
+      setSuccess('Berhasil ditambahkan!');
+      await fetchSubKegiatans(); 
     } catch (err) {
-      setError(err.message);
-      // Jika error, biarkan item tetap di form
-      setSubKegiatans(subs => 
-        subs.map(s => s.id === tempId ? { ...s, isLoading: false } : s)
-      );
+      setError("Gagal menyimpan.");
+      setSubKegiatans(subs => subs.map(s => s.id === tempId ? { ...s, isLoading: false } : s));
     }
-    // 'finally' tidak diperlukan karena fetchSubKegiatans() sudah me-reset state
   };
 
-  // 6. Handler untuk UPDATE sub-kegiatan yang ada
   const handleUpdate = async (id) => {
-    setError(null);
-    setSuccess(null);
-    
     const subToUpdate = subKegiatans.find(s => s.id === id);
-    if (!subToUpdate || !subToUpdate.nama_sub_kegiatan) {
-      setError('Nama Kegiatan tidak boleh kosong.');
-      return;
-    }
-    
-    setSubKegiatans(subs => 
-      subs.map(s => s.id === id ? { ...s, isLoading: true } : s)
-    );
-
+    setSubKegiatans(subs => subs.map(s => s.id === id ? { ...s, isLoading: true } : s));
     try {
       const token = localStorage.getItem('token');
-      const payload = {
-        nama_sub_kegiatan: subToUpdate.nama_sub_kegiatan,
-        deskripsi: subToUpdate.deskripsi,
-      };
-
-      const response = await fetch(`${API_URL}/api/subkegiatan/${id}`, {
+      await fetch(`${API_URL}/api/subkegiatan/${id}/info`, { 
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(subToUpdate),
       });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || 'Gagal update Kegiatan');
-      }
-
-      setSuccess(`Kegiatan #${id} berhasil diperbarui.`);
-      // Set isLoading: false secara manual agar tidak ada "lompatan" UI
-      setSubKegiatans(subs => 
-        subs.map(s => s.id === id ? { ...s, isLoading: false } : s)
-      );
-      
+      setSuccess(`Data berhasil diperbarui.`);
+      setSubKegiatans(subs => subs.map(s => s.id === id ? { ...s, isLoading: false } : s));
     } catch (err) {
-      setError(err.message);
-      setSubKegiatans(subs => 
-        subs.map(s => s.id === id ? { ...s, isLoading: false } : s)
-      );
+      setError("Gagal update.");
+      setSubKegiatans(subs => subs.map(s => s.id === id ? { ...s, isLoading: false } : s));
     }
   };
 
-  // 7. Handler untuk HAPUS sub-kegiatan (dari DB)
   const handleRemove = async (id) => {
-    if (!window.confirm('Apakah Anda yakin ingin menghapus Kegiatan ini?')) {
-      return;
-    }
-    setError(null);
-    setSuccess(null);
-    
-    setSubKegiatans(subs => 
-      subs.map(s => s.id === id ? { ...s, isLoading: true } : s)
-    );
-    
+    if (!window.confirm('Hapus permanen?')) return;
     try {
       const token = localStorage.getItem('token');
-      
-      const response = await fetch(`${API_URL}/api/subkegiatan/${id}`, {
+      await fetch(`${API_URL}/api/subkegiatan/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || 'Gagal menghapus Kegiatan');
-      }
-
-      setSuccess(`Kegiatan #${id} berhasil dihapus.`);
-      // Hapus item dari state secara lokal
+      setSuccess('Berhasil dihapus.');
       removeLocalSubKegiatan(id);
-      
     } catch (err) {
-      setError(err.message);
-      setSubKegiatans(subs => 
-        subs.map(s => s.id === id ? { ...s, isLoading: false } : s)
-      );
+      setError("Gagal menghapus.");
     }
   };
 
-
   return (
-    <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-xl font-semibold mb-4">Kelola Kegiatan</h2>
+    <div className="bg-white shadow-sm rounded-xl border border-gray-100 overflow-hidden">
       
-      {/* Notifikasi Global */}
-      {error && <div className="text-red-600 mb-4">Error: {error}</div>}
-      {success && <div className="text-green-600 mb-4">{success}</div>}
-      
-      {/* Daftar Sub Kegiatan (Mirip PartSubKegiatan) */}
-      <div className="space-y-4 mb-4">
-        {loading && <p>Memuat Kegiatan...</p>}
-        
-        {!loading && subKegiatans.length === 0 && (
-          <p className="text-gray-500 text-center py-4">Belum ada Kegiatan.</p>
-        )}
+      {/* Header Global */}
+      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+        <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+          <span className="text-[#1A2A80]"><FaClipboardList /></span>
+          Kelola Rincian Sub Kegiatan
+        </h2>
+        <span className="text-xs font-bold text-[#1A2A80] bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+          Total: {subKegiatans.length}
+        </span>
+      </div>
 
-        {subKegiatans.map((sub, index) => (
-          <div key={sub.id} className={`p-4 border rounded-md relative ${sub.isNew ? 'bg-indigo-50 border-indigo-200' : ''}`}>
-            <h3 className="font-medium text-gray-800 mb-2">
-              Kegiatan #{index + 1} {sub.isNew ? '(Baru)' : `(ID: ${sub.id})`}
-            </h3>
+      {/* Notifikasi */}
+      {error && <div className="mx-6 mt-4 bg-red-50 text-red-600 px-4 py-2 rounded-lg border border-red-100 text-sm">{error}</div>}
+      {success && <div className="mx-6 mt-4 bg-green-50 text-green-600 px-4 py-2 rounded-lg border border-green-100 text-sm">{success}</div>}
+      
+      <div className="p-6 space-y-6">
+        {!loading && subKegiatans.map((sub, index) => (
+          <div 
+            key={sub.id} 
+            className={`border rounded-xl relative transition-all duration-300 ${sub.isNew ? 'bg-blue-50/30 border-blue-200 shadow-md' : 'bg-white border-gray-200 hover:border-blue-300 shadow-sm'}`}
+          >
             
-            <div className="mb-2">
-              <label htmlFor={`nama_sub_kegiatan_${sub.id}`} className="block text-sm font-medium text-gray-700">
-                Nama Kegiatan (Wajib)
-              </label>
-              <input
-                type="text"
-                id={`nama_sub_kegiatan_${sub.id}`}
-                name="nama_sub_kegiatan"
-                value={sub.nama_sub_kegiatan}
-                onChange={(e) => handleChange(sub.id, e)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                required
-              />
+            {/* HEADER ITEM */}
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+               <div className="flex items-center gap-3">
+                 <span className={`w-8 h-8 flex items-center justify-center rounded-full text-xs font-bold ${sub.isNew ? 'bg-[#1A2A80] text-white' : 'bg-blue-100 text-[#1A2A80]'}`}>
+                    {index + 1}
+                 </span>
+                 <h3 className="font-bold text-gray-800 text-sm">
+                    Sub Kegiatan {sub.isNew ? '(Baru)' : `(ID: ${sub.id})`}
+                 </h3>
+               </div>
+
+               {/* Tombol Hapus / Batal */}
+               {sub.isNew ? (
+                  <button onClick={() => removeLocalSubKegiatan(sub.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full transition" title="Batal">
+                    <FaTimes />
+                  </button>
+               ) : (
+                  <button onClick={() => handleRemove(sub.id)} className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-full transition" title="Hapus Permanen">
+                    <FaTrash size={14} />
+                  </button>
+               )}
             </div>
-            <div>
-              <label htmlFor={`deskripsi_${sub.id}`} className="block text-sm font-medium text-gray-700">
-                Deskripsi
-              </label>
-              <textarea
-                id={`deskripsi_${sub.id}`}
-                name="deskripsi"
-                value={sub.deskripsi || ''}
-                onChange={(e) => handleChange(sub.id, e)}
-                rows="2"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              ></textarea>
+
+            {/* BODY ITEM (INPUTS - VERTIKAL) */}
+            <div className="p-6 flex flex-col gap-5">
+                
+                {/* Nama Kegiatan */}
+                <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Nama Kegiatan</label>
+                    <input
+                        type="text"
+                        name="nama_sub_kegiatan"
+                        value={sub.nama_sub_kegiatan}
+                        onChange={(e) => handleChange(sub.id, e)}
+                        className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] text-sm transition outline-none bg-white"
+                    />
+                </div>
+
+                {/* Tahun Periode */}
+                <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Tahun Periode</label>
+                    <input
+                        type="number"
+                        name="periode"
+                        value={sub.periode || ''}
+                        onChange={(e) => handleChange(sub.id, e)}
+                        className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] text-sm transition outline-none bg-white"
+                    />
+                </div>
+
+                {/* Deskripsi */}
+                <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5 flex items-center gap-1">
+                        <FaAlignLeft className="text-gray-400"/> Deskripsi
+                    </label>
+                    <textarea
+                        name="deskripsi"
+                        rows="2"
+                        value={sub.deskripsi || ''}
+                        onChange={(e) => handleChange(sub.id, e)}
+                        className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] text-sm transition outline-none resize-none bg-white"
+                    />
+                </div>
+
+                {/* Jadwal Pelaksanaan */}
+                <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 mt-2">
+                    <p className="text-xs font-bold text-gray-700 mb-4 uppercase flex items-center gap-2 border-b border-gray-200 pb-2">
+                        <FaCalendarAlt className="text-[#1A2A80]" /> Jadwal Pelaksanaan
+                    </p>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-xs text-gray-500 font-semibold mb-1 block">Mulai</label>
+                            <input type="date" name="tanggal_mulai" value={sub.tanggal_mulai || ''} onChange={(e) => handleChange(sub.id, e)} className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1A2A80] text-sm bg-white" />
+                        </div>
+                        <div>
+                            <label className="text-xs text-gray-500 font-semibold mb-1 block">Selesai</label>
+                            <input type="date" name="tanggal_selesai" value={sub.tanggal_selesai || ''} onChange={(e) => handleChange(sub.id, e)} className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1A2A80] text-sm bg-white" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Jadwal Rekrutmen */}
+                <div className="bg-blue-50 p-5 rounded-xl border border-blue-100">
+                    <p className="text-xs font-bold text-[#1A2A80] mb-4 uppercase flex items-center gap-2 border-b border-blue-200 pb-2">
+                        <FaBullhorn /> Open Recruitment
+                    </p>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-xs text-blue-700 font-semibold mb-1 block">Buka</label>
+                            <input type="date" name="open_req" value={sub.open_req || ''} onChange={(e) => handleChange(sub.id, e)} className="block w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-[#1A2A80] text-sm bg-white" />
+                        </div>
+                        <div>
+                            <label className="text-xs text-blue-700 font-semibold mb-1 block">Tutup</label>
+                            <input type="date" name="close_req" value={sub.close_req || ''} onChange={(e) => handleChange(sub.id, e)} className="block w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-[#1A2A80] text-sm bg-white" />
+                        </div>
+                    </div>
+                </div>
+
             </div>
-            
-            {/* Tombol Aksi per Item */}
-            <div className="flex items-center justify-end gap-2 mt-3">
-              {sub.isNew ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => removeLocalSubKegiatan(sub.id)}
-                    disabled={sub.isLoading}
-                    className="text-sm text-red-600 hover:underline disabled:text-gray-400"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSaveNew(sub.id)}
-                    disabled={sub.isLoading}
-                    className="px-3 py-1 text-sm border border-transparent rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400"
-                  >
-                    {sub.isLoading ? 'Menyimpan...' : 'Simpan Baru'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(sub.id)}
-                    disabled={sub.isLoading}
-                    className="text-sm text-red-600 hover:underline disabled:text-gray-400"
-                  >
-                    {sub.isLoading ? '...' : 'Hapus'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdate(sub.id)}
-                    disabled={sub.isLoading}
-                    className="px-3 py-1 text-sm border border-transparent rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-400"
-                  >
-                    {sub.isLoading ? 'Menyimpan...' : 'Update'}
-                  </button>
-                </>
-              )}
+
+            {/* FOOTER ITEM (ACTION BUTTONS) */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 rounded-b-xl flex justify-end">
+                {sub.isNew ? (
+                    <button onClick={() => handleSaveNew(sub.id)} disabled={sub.isLoading} className="flex items-center gap-2 bg-[#1A2A80] text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-900 transition shadow-sm disabled:opacity-50">
+                        {sub.isLoading ? '...' : <><FaSave /> Simpan Baru</>}
+                    </button>
+                ) : (
+                    <button onClick={() => handleUpdate(sub.id)} disabled={sub.isLoading} className="flex items-center gap-2 bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-sm disabled:opacity-50">
+                        {sub.isLoading ? '...' : <><FaSyncAlt /> Update Data</>}
+                    </button>
+                )}
             </div>
 
           </div>
         ))}
-      </div>
 
-      {/* Tombol Tambah di Bawah */}
-      <button
-        type="button"
-        onClick={addSubKegiatan}
-        disabled={loading}
-        className="w-full py-2 px-4 border border-dashed border-gray-400 text-gray-700 rounded-md hover:bg-gray-50"
-      >
-        + Tambah Kegiatan Lain
-      </button>
+        <button
+            type="button"
+            onClick={addSubKegiatan}
+            className="w-full py-4 px-6 border-2 border-dashed border-[#1A2A80]/30 text-[#1A2A80] font-bold rounded-xl hover:bg-blue-50 hover:border-[#1A2A80] transition flex items-center justify-center gap-2 group"
+        >
+            <span className="bg-[#1A2A80] text-white rounded-full p-1 group-hover:scale-110 transition-transform">
+                <FaPlus size={10} />
+            </span>
+            Tambah Sub Kegiatan Lain
+        </button>
+      </div>
     </div>
   );
 };

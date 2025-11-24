@@ -1,6 +1,17 @@
+// src/pages/admin/Penugasan.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+// 1. IMPORT SEMUA ICON YANG DIBUTUHKAN
+import { 
+  FaDownload, 
+  FaFileUpload, 
+  FaPlus, 
+  FaChevronDown, 
+  FaUsers, 
+  FaArrowRight,
+  FaClipboardList
+} from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const getToken = () => localStorage.getItem('token');
@@ -80,7 +91,7 @@ const Penugasan = () => {
     }
   };
 
-  // --- LOGIC BARU: DOWNLOAD TEMPLATE CSV ---
+  // --- DOWNLOAD TEMPLATE ---
   const handleDownloadTemplate = () => {
     const csvHeader = "nik,kegiatan_id,nama_kegiatan_ref,kode_jabatan";
     const csvRows = [
@@ -98,7 +109,7 @@ const Penugasan = () => {
     document.body.removeChild(link);
   };
 
-  // --- LOGIC BARU: IMPORT EXCEL/CSV ---
+  // --- IMPORT EXCEL/CSV ---
   const handleImportClick = () => {
     fileInputRef.current.click();
   };
@@ -143,86 +154,143 @@ const Penugasan = () => {
     }
   };
 
-  if (isLoading) return <div className="p-8 text-center text-gray-500">Memuat data penugasan...</div>;
+  if (isLoading) return <div className="text-center py-10 text-gray-500">Memuat data penugasan...</div>;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="w-full">
       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".csv, .xlsx, .xls" className="hidden" />
 
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">Manajemen Penugasan</h1>
-          <p className="text-gray-500 mt-1">Kelola tim dan import penugasan massal di sini.</p>
+      {/* --- HEADER ACTIONS --- */}
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div className="text-gray-500 text-sm">
+          Kelola tim dan alokasi mitra untuk setiap sub-kegiatan.
         </div>
         
         <div className="flex gap-2">
-          <button onClick={handleDownloadTemplate} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded shadow-sm border border-gray-300 text-sm font-medium transition flex items-center gap-2">
-            📥 Template CSV
+          <button 
+            onClick={handleDownloadTemplate} 
+            className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 transition shadow-sm"
+          >
+            <FaDownload /> Template CSV
           </button>
-          <button onClick={handleImportClick} disabled={uploading} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow text-sm font-bold transition flex items-center gap-2 disabled:opacity-50">
-            {uploading ? 'Mengupload...' : '📤 Import Penugasan'}
+          <button 
+            onClick={handleImportClick} 
+            disabled={uploading} 
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm disabled:opacity-50"
+          >
+            <FaFileUpload /> {uploading ? '...' : 'Import Excel'}
           </button>
-          <Link to="/admin/penugasan/tambah" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow text-sm font-bold transition flex items-center gap-2">
-            + Buat Manual
+          <Link 
+            to="/admin/penugasan/tambah" 
+            className="flex items-center gap-2 bg-[#1A2A80] hover:bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm"
+          >
+            <FaPlus /> Buat Manual
           </Link>
         </div>
       </div>
 
-      <div className="space-y-8">
+      {/* --- LIST PENUGASAN (GROUPED) --- */}
+      <div className="space-y-6">
         {Object.keys(groupedPenugasan).length === 0 ? (
-          <div className="text-center py-10 bg-gray-50 rounded border border-dashed text-gray-400">
-            Belum ada penugasan. Silakan import atau buat baru.
+          <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-400 italic">
+            Belum ada data penugasan. Silakan import atau buat baru.
           </div>
         ) : (
           Object.entries(groupedPenugasan).map(([kegiatanName, subItems]) => (
-            <div key={kegiatanName} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+            <div key={kegiatanName} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              
+              {/* Header Grup (Nama Kegiatan Utama) */}
+              <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                 <span className="text-[#1A2A80]"><FaClipboardList size={18} /></span>
                  <h2 className="text-lg font-bold text-gray-800">{kegiatanName}</h2>
-                 <span className="text-xs font-medium bg-gray-200 text-gray-600 px-2 py-1 rounded-full">{subItems.length} Sub Kegiatan</span>
+                 <span className="text-xs font-medium bg-white text-gray-600 border border-gray-200 px-2 py-0.5 rounded-full ml-auto">
+                    {subItems.length} Tim
+                 </span>
               </div>
 
+              {/* List Sub Kegiatan */}
               <div className="divide-y divide-gray-100">
                 {subItems.map((task) => {
                   const isOpen = expandedTaskId === task.id_penugasan;
                   const members = membersCache[task.id_penugasan] || [];
+                  
                   return (
                     <div key={task.id_penugasan} className="group">
-                      <div onClick={() => toggleRow(task.id_penugasan)} className={`px-6 py-4 cursor-pointer transition flex items-center justify-between hover:bg-indigo-50 ${isOpen ? 'bg-indigo-50' : 'bg-white'}`}>
+                      
+                      {/* Baris Utama (Klik untuk Expand) */}
+                      <div 
+                        onClick={() => toggleRow(task.id_penugasan)} 
+                        className={`px-6 py-4 cursor-pointer transition-colors flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${isOpen ? 'bg-blue-50/40' : 'hover:bg-gray-50'}`}
+                      >
                         <div className="flex-1">
-                          <h3 className="font-semibold text-sm text-gray-800">{task.nama_sub_kegiatan}</h3>
+                          <div className="flex items-center gap-3 mb-1">
+                            {/* Icon Panah Dropdown */}
+                            <div className={`p-1 rounded-full transition-transform duration-200 ${isOpen ? 'rotate-180 text-[#1A2A80] bg-blue-100' : 'text-gray-400'}`}>
+                                <FaChevronDown size={10} />
+                            </div>
+                            <h3 className={`font-bold text-sm ${isOpen ? 'text-[#1A2A80]' : 'text-gray-700'}`}>
+                                {task.nama_sub_kegiatan}
+                            </h3>
+                          </div>
                           
-                          {/* --- UPDATED: Menampilkan Tanggal di Sini --- */}
-                          <div className="text-xs text-gray-500 mt-1 flex flex-col sm:flex-row sm:gap-4 gap-1">
-                            <span className="flex items-center gap-1 text-indigo-600 font-medium">
+                          <div className="pl-7 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
                               📅 {formatDate(task.tanggal_mulai)} - {formatDate(task.tanggal_selesai)}
                             </span>
-                            <span>👤 Pengawas: {task.nama_pengawas}</span>
-                            <span>📊 Kapasitas: {task.jumlah_max_mitra} Orang</span>
+                            <span className="flex items-center gap-1">
+                              👤 Pengawas: <span className="font-medium text-gray-700">{task.nama_pengawas}</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              📊 Kuota: <span className="font-medium text-gray-700">{task.jumlah_max_mitra}</span>
+                            </span>
                           </div>
-                          {/* ------------------------------------------ */}
-                        
                         </div>
-                        <div className="text-xs text-gray-500">
-                           {membersCache[task.id_penugasan] ? `${members.length} Anggota` : 'Klik untuk lihat'}
+
+                        <div className="text-xs font-medium text-gray-400 group-hover:text-[#1A2A80] transition-colors flex items-center gap-2 min-w-fit">
+                           {isOpen ? 'Tutup Detail' : (
+                               <>
+                                 <FaUsers /> {membersCache[task.id_penugasan] ? members.length : '?'} Anggota
+                               </>
+                           )}
                         </div>
                       </div>
                       
+                      {/* Konten Detail (Accordion) */}
                       {isOpen && (
-                        <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 text-sm">
-                           {loadingMembers ? 'Memuat...' : (
-                             members.length === 0 ? 'Belum ada anggota.' : (
-                               <ul className="list-disc pl-5">
+                        <div className="bg-gray-50/30 px-6 py-5 border-t border-gray-100 text-sm animate-fade-in-down pl-6 sm:pl-14">
+                           <div className="flex justify-between items-center mb-4">
+                                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Daftar Anggota Tim:</h4>
+                                <Link 
+                                    to={`/admin/penugasan/detail/${task.id_penugasan}`} 
+                                    className="text-[#1A2A80] font-bold text-xs hover:underline flex items-center gap-1 bg-white px-3 py-1.5 rounded border border-gray-200 shadow-sm hover:bg-blue-50 transition"
+                                >
+                                    Kelola Tim <FaArrowRight size={10} />
+                                </Link>
+                           </div>
+
+                           {loadingMembers ? (
+                             <p className="text-gray-400 italic text-center py-4">Memuat data anggota...</p>
+                           ) : (
+                             members.length === 0 ? (
+                               <div className="text-center py-6 bg-white rounded border border-dashed border-gray-200 text-gray-400 text-xs">
+                                 Belum ada anggota di tim ini.
+                               </div>
+                             ) : (
+                               <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                  {members.map(m => (
-                                   <li key={m.id_mitra}>
-                                     {m.nama_lengkap} <span className="text-gray-400">({m.nama_jabatan})</span>
+                                   <li key={m.id_mitra} className="flex items-center gap-3 bg-white px-3 py-2.5 rounded-lg border border-gray-200 shadow-sm">
+                                     <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-xs font-bold">
+                                        {m.nama_lengkap.charAt(0)}
+                                     </div>
+                                     <div className="overflow-hidden">
+                                        <p className="text-gray-700 font-bold text-xs truncate">{m.nama_lengkap}</p>
+                                        <p className="text-xs text-gray-400 truncate">{m.nama_jabatan}</p>
+                                     </div>
                                    </li>
                                  ))}
                                </ul>
                              )
                            )}
-                           <div className="mt-2 text-right">
-                             <Link to={`/admin/penugasan/detail/${task.id_penugasan}`} className="text-indigo-600 font-bold text-xs hover:underline">Kelola Tim &rarr;</Link>
-                           </div>
                         </div>
                       )}
                     </div>

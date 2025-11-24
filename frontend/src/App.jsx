@@ -20,7 +20,7 @@ import DetailPenugasan from './pages/admin/DetailPenugasan';
 import TambahPenugasan from './pages/admin/TambahPenugasan'; 
 
 import LengkapiProfile from './pages/LengkapiProfile';
-import DaftarPengajuanMitra from './pages/admin/DaftarPengajuanMitra';
+import ManajemenMitra from './pages/admin/ManajemenMitra';
 import DetailPengajuanMitra from './pages/admin/DetailPengajuanMitra';
 import DaftarLaporan from './pages/admin/DaftarLaporan';
 import SettingLaporan from './pages/admin/SettingLaporan';
@@ -69,7 +69,7 @@ function AppRoutes() {
           <Route path="/admin/penugasan/tambah" element={<TambahPenugasan />} />
           <Route path="/admin/penugasan/detail/:id" element={<DetailPenugasan />} />
 
-          <Route path="/admin/pengajuan-mitra" element={<DaftarPengajuanMitra />} />
+          <Route path="/admin/pengajuan-mitra" element={<ManajemenMitra />} />
           <Route path="/admin/pengajuan-mitra/:id" element={<DetailPengajuanMitra />} />
           <Route path="/admin/laporan" element={<DaftarLaporan />} />
           <Route path="/admin/laporan/setting/:id_kegiatan" element={<SettingLaporan />} />

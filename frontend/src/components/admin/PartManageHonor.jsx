@@ -1,37 +1,42 @@
 // src/components/admin/PartManageHonor.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+// 1. IMPORT ICON
+import { 
+  FaMoneyBillWave, 
+  FaSave, 
+  FaTrash, 
+  FaSyncAlt, 
+  FaExclamationCircle,
+  FaCheckCircle 
+} from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const getToken = () => localStorage.getItem('token');
 
 const PartManageHonor = ({ kegiatanId }) => {
-  const [kegiatan, setKegiatan] = useState(null);
   const [subKegiatans, setSubKegiatans] = useState([]);
+  const [listSatuan, setListSatuan] = useState([]);
   
-  // State untuk honorarium yang sudah ada
-  const [mainHonor, setMainHonor] = useState(null);
-  const [subHonorsMap, setSubHonorsMap] = useState(new Map());
-
-  // State untuk nilai di input fields
-  const [mainTarifInput, setMainTarifInput] = useState(0);
-  const [subTarifInputs, setSubTarifInputs] = useState(new Map());
+  // State untuk menyimpan nilai input per sub-kegiatan
+  // Format Map: { subId: { id_honor, tarif, id_satuan, basis_volume, isNew } }
+  const [inputsMap, setInputsMap] = useState({});
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  const showSuccess = (message) => {
-    setSuccess(message);
+  // Helper Notifikasi
+  const showSuccess = (msg) => {
+    setSuccess(msg);
     setTimeout(() => setSuccess(null), 3000);
   };
-  
-  const showError = (message) => {
-    setError(message);
+  const showError = (msg) => {
+    setError(msg);
     setTimeout(() => setError(null), 3000);
-  }
+  };
 
-  // Fungsi untuk mengambil semua data terkait
+  // --- FETCH DATA ---
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -39,190 +44,260 @@ const PartManageHonor = ({ kegiatanId }) => {
     const headers = { Authorization: `Bearer ${token}` };
 
     try {
-      // 1. Ambil data Kegiatan, Sub Kegiatan, dan semua Honorarium
-      const [kegRes, subKegRes, honRes] = await Promise.all([
-        axios.get(`${API_URL}/api/kegiatan/${kegiatanId}`, { headers }),
+      // 1. Ambil Referensi Satuan & Data Sub Kegiatan
+      const [resSatuan, resSub, resHonor] = await Promise.all([
+        axios.get(`${API_URL}/api/satuan`, { headers }), // Endpoint satuan dinamis
         axios.get(`${API_URL}/api/subkegiatan/kegiatan/${kegiatanId}`, { headers }),
         axios.get(`${API_URL}/api/honorarium`, { headers })
       ]);
 
-      const kegData = kegRes.data;
-      const subKegData = subKegRes.data;
-      const allHonors = honRes.data;
+      const satList = resSatuan.data;
+      const subs = resSub.data.data || resSub.data; // Handle format response
+      const honors = resHonor.data;
 
-      setKegiatan(kegData);
-      setSubKegiatans(subKegData);
+      setListSatuan(satList);
+      setSubKegiatans(subs);
 
-      // 2. Proses dan petakan honorarium
-      const foundMainHonor = allHonors.find(h => h.id_kegiatan === kegData.id) || null;
-      setMainHonor(foundMainHonor);
-      setMainTarifInput(foundMainHonor?.tarif || 0);
-      
-      const newSubHonorsMap = new Map();
-      const newSubTarifInputs = new Map();
-      
-      subKegData.forEach(sub => {
-        const foundSubHonor = allHonors.find(h => h.id_subkegiatan === sub.id) || null;
-        newSubHonorsMap.set(sub.id, foundSubHonor);
-        newSubTarifInputs.set(sub.id, foundSubHonor?.tarif || 0);
+      // 2. Mapping Data Honor ke State Lokal
+      const initialMap = {};
+      const defaultSatuan = satList.length > 0 ? satList[0].id : 1;
+
+      subs.forEach(sub => {
+        // Cari honor yang sesuai dengan sub kegiatan ini
+        const honor = honors.find(h => h.id_subkegiatan === sub.id);
+        
+        if (honor) {
+          // Jika sudah ada honor, isi state dengan data DB
+          initialMap[sub.id] = {
+            id_honor: honor.id_honorarium,
+            tarif: Number(honor.tarif),
+            id_satuan: honor.id_satuan,
+            basis_volume: honor.basis_volume,
+            isNew: false
+          };
+        } else {
+          // Jika belum ada, siapkan state default (Mode Create)
+          initialMap[sub.id] = {
+            id_honor: null,
+            tarif: 0,
+            id_satuan: defaultSatuan,
+            basis_volume: 1,
+            isNew: true
+          };
+        }
       });
-
-      setSubHonorsMap(newSubHonorsMap);
-      setSubTarifInputs(newSubTarifInputs);
+      setInputsMap(initialMap);
 
     } catch (err) {
-      setError(err.response?.data?.message || 'Gagal memuat data honorarium');
+      console.error(err);
+      setError("Gagal memuat data honorarium.");
     } finally {
       setLoading(false);
     }
   }, [kegiatanId]);
 
-  // Ambil data saat komponen dimuat
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (kegiatanId) fetchData();
+  }, [fetchData, kegiatanId]);
 
-  // Handler untuk menyimpan/update/hapus
-  const handleAction = async (actionType, targetId, targetType, honorId = null) => {
+  // --- HANDLERS ---
+
+  const handleInputChange = (subId, field, value) => {
+    setInputsMap(prev => ({
+      ...prev,
+      [subId]: {
+        ...prev[subId],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleSave = async (subId) => {
     const token = getToken();
-    const config = { headers: { Authorization: `Bearer ${token}` } };
-    let tarif, body, url, method;
+    const data = inputsMap[subId];
+    
+    if (data.tarif <= 0) return showError("Tarif harus lebih dari 0.");
 
     try {
-      if (targetType === 'kegiatan') {
-        tarif = mainTarifInput;
-        body = { tarif, id_kegiatan: targetId, id_subkegiatan: null };
-      } else { // subkegiatan
-        tarif = subTarifInputs.get(targetId);
-        body = { tarif, id_subkegiatan: targetId, id_kegiatan: null };
-      }
+      const payload = {
+        tarif: data.tarif,
+        id_satuan: data.id_satuan,
+        basis_volume: data.basis_volume
+      };
 
-      switch (actionType) {
-        case 'CREATE':
-          method = 'POST';
-          url = `${API_URL}/api/honorarium`;
-          break;
-        case 'UPDATE':
-          method = 'PUT';
-          url = `${API_URL}/api/honorarium/${honorId}`;
-          break;
-        case 'DELETE':
-          method = 'DELETE';
-          url = `${API_URL}/api/honorarium/${honorId}`;
-          body = undefined; // Hapus tidak perlu body
-          break;
-        default:
-          return;
+      if (data.isNew) {
+        // CREATE
+        await axios.post(`${API_URL}/api/honorarium`, {
+          ...payload,
+          id_subkegiatan: subId
+        }, { headers: { Authorization: `Bearer ${token}` } });
+        showSuccess("Honorarium berhasil dibuat.");
+      } else {
+        // UPDATE
+        await axios.put(`${API_URL}/api/honorarium/${data.id_honor}`, payload, { 
+          headers: { Authorization: `Bearer ${token}` } 
+        });
+        showSuccess("Honorarium berhasil diperbarui.");
       }
+      
+      fetchData(); // Refresh data agar ID tersinkron
 
-      await axios({ method, url, data: body, ...config });
-      showSuccess(`Honorarium berhasil di-${actionType.toLowerCase()}.`);
-      fetchData(); // Muat ulang data
     } catch (err) {
-      showError(err.response?.data?.error || `Gagal ${actionType.toLowerCase()} honorarium`);
+      showError(err.response?.data?.error || "Gagal menyimpan honorarium.");
     }
   };
 
-  if (loading) return <div className="bg-white shadow rounded-lg p-6 text-center">Memuat data honorarium...</div>;
+  const handleDelete = async (subId) => {
+    if (!window.confirm("Yakin hapus tarif honor ini?")) return;
+    const token = getToken();
+    const data = inputsMap[subId];
+
+    try {
+      await axios.delete(`${API_URL}/api/honorarium/${data.id_honor}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      showSuccess("Honorarium dihapus.");
+      fetchData(); // Reset state ke mode 'isNew'
+    } catch (err) {
+      showError("Gagal menghapus data.");
+    }
+  };
+
+  if (loading) return <div className="text-center py-6 text-gray-500">Memuat data honorarium...</div>;
 
   return (
-    <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-xl font-semibold mb-4">Kelola Honorarium</h2>
-      {error && <div className="text-red-600 mb-4 text-sm">Error: {error}</div>}
-      {success && <div className="text-green-600 mb-4 text-sm">{success}</div>}
+    <div className="bg-white shadow-sm rounded-xl border border-gray-100 overflow-hidden">
+      
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
+        <span className="text-[#1A2A80] text-lg"><FaMoneyBillWave /></span>
+        <div>
+            <h2 className="text-lg font-bold text-gray-800">Kelola Honorarium</h2>
+            <p className="text-xs text-gray-500">Atur tarif pembayaran untuk setiap sub kegiatan.</p>
+        </div>
+      </div>
 
-      <div className="space-y-6">
-        {/* 1. Honorarium Kegiatan Utama */}
-        {kegiatan && (
-          <div className="p-4 border rounded-md">
-            <h3 className="font-medium text-gray-800 mb-2">Kegiatan Utama: {kegiatan.nama_kegiatan}</h3>
-            <div className="flex items-center gap-2">
-              <label htmlFor="main_tarif" className="text-sm font-medium text-gray-700">Tarif (Rp):</label>
-              <input
-                type="number"
-                id="main_tarif"
-                value={mainTarifInput}
-                onChange={(e) => setMainTarifInput(e.target.valueAsNumber || 0)}
-                className="block w-full max-w-xs px-3 py-1 border border-gray-300 rounded-md shadow-sm text-sm"
-              />
+      {/* Notifikasi */}
+      {error && <div className="mx-6 mt-4 bg-red-50 text-red-600 px-4 py-2 rounded-lg border border-red-100 text-sm flex items-center gap-2"><FaExclamationCircle /> {error}</div>}
+      {success && <div className="mx-6 mt-4 bg-green-50 text-green-600 px-4 py-2 rounded-lg border border-green-100 text-sm flex items-center gap-2"><FaCheckCircle /> {success}</div>}
+
+      <div className="p-6 space-y-6">
+        {subKegiatans.length === 0 && (
+            <div className="text-center py-8 text-gray-400 italic border-2 border-dashed border-gray-100 rounded-xl">
+                Tidak ada sub kegiatan. Tambahkan sub kegiatan terlebih dahulu.
             </div>
-            <div className="flex items-center gap-2 mt-2">
-              {mainHonor ? (
-                <>
-                  <button
-                    onClick={() => handleAction('UPDATE', kegiatan.id, 'kegiatan', mainHonor.id_honorarium)}
-                    className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
-                  >
-                    Update
-                  </button>
-                  <button
-                    onClick={() => handleAction('DELETE', kegiatan.id, 'kegiatan', mainHonor.id_honorarium)}
-                    className="px-3 py-1 text-sm text-red-600 hover:underline"
-                  >
-                    Hapus
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => handleAction('CREATE', kegiatan.id, 'kegiatan')}
-                  className="px-3 py-1 text-sm text-white bg-indigo-600 rounded hover:bg-indigo-700"
-                >
-                  Simpan Baru
-                </button>
-              )}
-            </div>
-          </div>
         )}
 
-        {/* 2. Honorarium Sub Kegiatan */}
-        {subKegiatans.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="font-medium text-gray-800">Sub Kegiatan:</h3>
-            {subKegiatans.map(sub => {
-              const subHonor = subHonorsMap.get(sub.id);
-              return (
-                <div key={sub.id} className="p-3 border rounded-md bg-gray-50">
-                  <p className="text-sm font-medium text-gray-700 mb-1">{sub.nama_sub_kegiatan} (ID: {sub.id})</p>
-                  <div className="flex items-center gap-2">
-                    <label htmlFor={`sub_tarif_${sub.id}`} className="text-sm">Tarif (Rp):</label>
+        {subKegiatans.map((sub, index) => {
+          const inputData = inputsMap[sub.id] || {};
+          
+          return (
+            <div key={sub.id} className="p-6 border border-gray-200 rounded-xl bg-white shadow-sm hover:border-green-300 transition-colors relative">
+              
+              {/* Header Item */}
+              <div className="flex items-center gap-3 mb-5 pb-3 border-b border-gray-100">
+                <span className="bg-green-100 text-green-800 w-8 h-8 flex items-center justify-center rounded-full text-xs font-bold">
+                  {index + 1}
+                </span>
+                <div>
+                    <h3 className="font-bold text-gray-800 text-sm">
+                        {sub.nama_sub_kegiatan}
+                    </h3>
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${inputData.isNew ? 'bg-gray-100 text-gray-500' : 'bg-green-50 text-green-600'}`}>
+                        {inputData.isNew ? 'Belum Ada Tarif' : 'Aktif'}
+                    </span>
+                </div>
+              </div>
+
+              {/* Form Inputs (Vertikal) */}
+              <div className="flex flex-col gap-5">
+                
+                {/* 1. Tarif */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
+                    Nominal Tarif (Rp)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-gray-500 text-sm font-bold">Rp</span>
                     <input
                       type="number"
-                      id={`sub_tarif_${sub.id}`}
-                      value={subTarifInputs.get(sub.id) || 0}
-                      onChange={(e) => setSubTarifInputs(prev => new Map(prev).set(sub.id, e.target.valueAsNumber || 0))}
-                      className="block w-full max-w-xs px-3 py-1 border border-gray-300 rounded-md shadow-sm text-sm"
+                      min="0"
+                      placeholder="0"
+                      value={inputData.tarif || ''}
+                      onChange={(e) => handleInputChange(sub.id, 'tarif', parseFloat(e.target.value) || 0)}
+                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 text-sm font-bold text-gray-800"
                     />
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    {subHonor ? (
-                      <>
-                        <button
-                          onClick={() => handleAction('UPDATE', sub.id, 'subkegiatan', subHonor.id_honorarium)}
-                          className="px-3 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700"
-                        >
-                          Update
-                        </button>
-                        <button
-                          onClick={() => handleAction('DELETE', sub.id, 'subkegiatan', subHonor.id_honorarium)}
-                          className="px-3 py-1 text-xs text-red-600 hover:underline"
-                        >
-                          Hapus
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => handleAction('CREATE', sub.id, 'subkegiatan')}
-                        className="px-3 py-1 text-xs text-white bg-indigo-600 rounded hover:bg-indigo-700"
-                      >
-                        Simpan Baru
-                      </button>
-                    )}
+                </div>
+
+                {/* 2. Satuan */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
+                    Satuan Kegiatan
+                  </label>
+                  <select
+                    value={inputData.id_satuan}
+                    onChange={(e) => handleInputChange(sub.id, 'id_satuan', parseInt(e.target.value))}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 text-sm bg-white"
+                  >
+                    {listSatuan.map(opt => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.nama_satuan} {opt.alias ? `(${opt.alias})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Volume Target */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
+                    Volume Target (Per Pembayaran)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-500 text-sm">Dibayar per:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={inputData.basis_volume || 1}
+                      onChange={(e) => handleInputChange(sub.id, 'basis_volume', parseInt(e.target.value) || 1)}
+                      className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 text-sm text-center font-bold"
+                    />
+                    <span className="text-gray-500 text-sm">Unit</span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+
+              </div>
+
+              {/* Footer Actions */}
+              <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end gap-3">
+                {inputData.isNew ? (
+                    <button 
+                        onClick={() => handleSave(sub.id)}
+                        className="flex items-center gap-2 bg-[#1A2A80] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-900 transition shadow-sm"
+                    >
+                        <FaSave /> Simpan Tarif
+                    </button>
+                ) : (
+                    <>
+                        <button 
+                            onClick={() => handleDelete(sub.id)}
+                            className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-100 border border-red-200 transition"
+                        >
+                            <FaTrash /> Hapus
+                        </button>
+                        <button 
+                            onClick={() => handleSave(sub.id)}
+                            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition shadow-sm"
+                        >
+                            <FaSyncAlt /> Update
+                        </button>
+                    </>
+                )}
+              </div>
+
+            </div>
+          );
+        })}
       </div>
     </div>
   );

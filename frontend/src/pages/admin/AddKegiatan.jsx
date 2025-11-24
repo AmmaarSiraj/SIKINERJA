@@ -1,34 +1,59 @@
-import React, { useState } from 'react';
+// src/pages/admin/AddKegiatan.jsx
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import axios from 'axios';
 import PartSubKegiatan from '../../components/admin/PartSubKegiatan';
-// --- 1. IMPORT KOMPONEN BARU ---
 import PartAddHonor from '../../components/admin/PartAddHonor'; 
+// 1. IMPORT ICON
+import { 
+  FaArrowLeft, 
+  FaSave, 
+  FaListAlt, 
+  FaPlus, 
+  FaLayerGroup 
+} from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const AddKegiatan = () => {
+  // --- STATE ---
+  const [modeInput, setModeInput] = useState('new'); 
+  const [existingKegiatanList, setExistingKegiatanList] = useState([]);
+  const [selectedKegiatanId, setSelectedKegiatanId] = useState('');
+
+  // State Form Kegiatan Baru
   const [formData, setFormData] = useState({
     nama_kegiatan: '',
     deskripsi: '',
-    tahun_anggaran: new Date().getFullYear(),
-    tanggal_mulai: '',
-    tanggal_selesai: '',
   });
   
   const [showSubKegiatan, setShowSubKegiatan] = useState(false);
   const [subKegiatans, setSubKegiatans] = useState([]);
   
-  // --- 2. TAMBAHKAN STATE BARU UNTUK HONORARIUM ---
-  const [honorariumData, setHonorariumData] = useState({
-    applyTo: 'none',
-    tarif: 0,
-  });
-  // ---------------------------------------------
+  // State Honorarium
+  const [honorariumMap, setHonorariumMap] = useState({});
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const navigate = useNavigate();
+
+  // --- FETCH DATA ---
+  useEffect(() => {
+    const fetchKegiatan = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if(!token) return;
+        const res = await axios.get(`${API_URL}/api/kegiatan`, {
+           headers: { Authorization: `Bearer ${token}` }
+        });
+        setExistingKegiatanList(res.data);
+      } catch (err) {
+        console.error("Gagal memuat daftar kegiatan", err);
+      }
+    };
+    fetchKegiatan();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -40,273 +65,276 @@ const AddKegiatan = () => {
     setShowSubKegiatan(isChecked);
     
     if (isChecked && subKegiatans.length === 0) {
-      setSubKegiatans([{ id: Date.now(), nama_sub_kegiatan: '', deskripsi: '' }]);
+      setSubKegiatans([{ 
+        id: Date.now(), 
+        nama_sub_kegiatan: '', 
+        deskripsi: '', 
+        periode: new Date().getFullYear().toString(), 
+        tanggal_mulai: '', 
+        tanggal_selesai: '', 
+        open_req: '', 
+        close_req: '' 
+      }]);
     } else if (!isChecked) {
       setSubKegiatans([]);
-      // Jika sub kegiatan dimatikan, honorarium tidak bisa berlaku untuk subkegiatan
-      if (honorariumData.applyTo === 'subkegiatan') {
-        setHonorariumData({ applyTo: 'none', tarif: 0 });
-      }
+      setHonorariumMap({});
     }
   };
 
-  // --- 3. MODIFIKASI FUNGSI HANDLESUBMIT ---
+  // --- HANDLE SUBMIT ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setSuccess(null);
 
-    // Validasi
+    // VALIDASI
     if (showSubKegiatan && subKegiatans.some(sub => !sub.nama_sub_kegiatan)) {
       setError('Nama sub kegiatan tidak boleh kosong.');
       setLoading(false);
       return;
     }
-    if (honorariumData.applyTo !== 'none' && honorariumData.tarif <= 0) {
-      setError('Tarif honorarium harus lebih dari 0.');
+
+    if (modeInput === 'existing' && !selectedKegiatanId) {
+      setError('Harap pilih Survei/Sensus terlebih dahulu.');
       setLoading(false);
       return;
     }
 
-    // Siapkan payload kegiatan
-    const payloadKegiatan = {
-      ...formData,
-    };
-    if (showSubKegiatan && subKegiatans.length > 0) {
-      payloadKegiatan.subkegiatans = subKegiatans.map(({ nama_sub_kegiatan, deskripsi }) => ({
-        nama_sub_kegiatan,
-        deskripsi,
-      }));
+    if (modeInput === 'new' && !formData.nama_kegiatan) {
+      setError('Nama Survei/Sensus baru wajib diisi.');
+      setLoading(false);
+      return;
     }
 
     let token;
     try {
       token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No auth token found. Please login.');
-      }
-
-      // === LANGKAH A: BUAT KEGIATAN & SUB KEGIATAN ===
-      const response = await fetch(`${API_URL}/api/kegiatan`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(payloadKegiatan),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || 'Gagal menyimpan kegiatan');
-      }
-
-      const result = await response.json();
-      let successMessage = result.message;
-
-      // === LANGKAH B: BUAT HONORARIUM (JIKA ADA) ===
-      const { applyTo, tarif } = honorariumData;
+      if (!token) throw new Error('No auth token found. Please login.');
       
-      if (applyTo !== 'none' && tarif > 0) {
-        const newKegiatan = result.data.kegiatan;
-        const newSubKegiatans = result.data.subkegiatans; // Ini dari controller
+      const config = {
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        }
+      };
 
-        const honorHeaders = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+      let finalKegiatanId = null;
+
+      // 1. PROSES INDUK KEGIATAN
+      if (modeInput === 'new') {
+        const payloadKegiatan = {
+            ...formData,
+            subkegiatans: [] 
         };
+        const response = await axios.post(`${API_URL}/api/kegiatan`, payloadKegiatan, config);
+        finalKegiatanId = response.data.data?.kegiatan?.id || response.data.id || response.data.data?.id;
+      } else {
+        finalKegiatanId = selectedKegiatanId;
+      }
 
-        try {
-          if (applyTo === 'kegiatan') {
-            // --- Buat 1 honorarium untuk kegiatan utama ---
-            await fetch(`${API_URL}/api/honorarium`, {
-              method: 'POST',
-              headers: honorHeaders,
-              body: JSON.stringify({
-                id_kegiatan: newKegiatan.id,
-                tarif: tarif
-              }),
-            });
+      // 2. PROSES SUB KEGIATAN & HONOR
+      if (showSubKegiatan && subKegiatans.length > 0) {
+        for (const sub of subKegiatans) {
+            const payloadSub = {
+                id_kegiatan: finalKegiatanId,
+                nama_sub_kegiatan: sub.nama_sub_kegiatan,
+                deskripsi: sub.deskripsi,
+                periode: sub.periode, 
+                open_req: sub.open_req,
+                close_req: sub.close_req,
+                tanggal_mulai: sub.tanggal_mulai,
+                tanggal_selesai: sub.tanggal_selesai
+            };
 
-          } else if (applyTo === 'subkegiatan' && newSubKegiatans.length > 0) {
-            // --- Buat honorarium untuk setiap sub kegiatan ---
-            const honorPromises = newSubKegiatans.map(sub => {
-              return fetch(`${API_URL}/api/honorarium`, {
-                method: 'POST',
-                headers: honorHeaders,
-                body: JSON.stringify({
-                  id_subkegiatan: sub.id,
-                  tarif: tarif
-                }),
-              });
-            });
-            
-            await Promise.all(honorPromises);
-          }
-          successMessage += ' dan honorarium berhasil ditambahkan.';
+            const resSub = await axios.post(`${API_URL}/api/subkegiatan`, payloadSub, config);
+            const realSubId = resSub.data.data?.id || resSub.data.data?.insertId || resSub.data.id;
 
-        } catch (honorError) {
-          // Jika kegiatan sukses tapi honor gagal
-          console.error("Gagal menyimpan honorarium:", honorError);
-          // Tetap set sukses, tapi beri peringatan
-          setSuccess(result.message);
-          throw new Error(`Kegiatan berhasil disimpan, TAPI gagal menambahkan honorarium: ${honorError.message}`);
+            const honorConfig = honorariumMap[sub.id];
+            if (honorConfig && honorConfig.tarif > 0) {
+                const payloadHonor = {
+                    id_subkegiatan: realSubId, 
+                    tarif: honorConfig.tarif,
+                    id_satuan: honorConfig.id_satuan,
+                    basis_volume: honorConfig.basis_volume
+                };
+                await axios.post(`${API_URL}/api/honorarium`, payloadHonor, config);
+            }
         }
       }
       
-      // === LANGKAH C: SELESAI ===
-      setSuccess(successMessage);
-      
-      // Reset form
-      setFormData({
-        nama_kegiatan: '',
-        deskripsi: '',
-        tahun_anggaran: new Date().getFullYear(),
-        tanggal_mulai: '',
-        tanggal_selesai: '',
-      });
-      setSubKegiatans([]);
-      setShowSubKegiatan(false);
-      setHonorariumData({ applyTo: 'none', tarif: 0 }); // Reset state honor
-
-      // Navigasi
+      setSuccess('Data berhasil disimpan!');
       setTimeout(() => {
-        navigate(`/admin/manage-kegiatan/detail/${result.data.kegiatan.id}`);
+        navigate(`/admin/manage-kegiatan`);
       }, 1500);
 
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError(err.response?.data?.message || err.message || 'Terjadi kesalahan.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <Link to="/admin/manage-kegiatan" className="text-indigo-600 hover:underline mb-4 inline-block">
-        &larr; Kembali ke Daftar Survei/Sensus
-      </Link>
-      <h1 className="text-3xl font-bold mb-6">Tambah Survei/Sensus Baru</h1>
-
-      <div className="flex items-center justify-end mb-4">
-        <label htmlFor="toggle-sub-kegiatan" className="mr-3 text-sm font-medium text-gray-900">
-          Tambahkan Kegiatan
-        </label>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input 
-            type="checkbox" 
-            id="toggle-sub-kegiatan" 
-            className="sr-only peer"
-            checked={showSubKegiatan}
-            onChange={handleToggleSubKegiatan}
-          />
-          <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-indigo-300 peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-        </label>
+    <div className="w-full max-w-6xl mx-auto pb-10">
+      
+      {/* Tombol Kembali */}
+      <div className="mb-6">
+        <Link 
+          to="/admin/manage-kegiatan" 
+          className="inline-flex items-center gap-2 text-gray-500 hover:text-[#1A2A80] transition font-medium"
+        >
+          <FaArrowLeft size={14} /> Kembali ke Daftar
+        </Link>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Kolom 1: Detail Kegiatan Utama */}
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Detail Survei/Sensus Utama</h2>
-          
-          <div className="mb-4">
-            <label htmlFor="nama_kegiatan" className="block text-sm font-medium text-gray-700">Nama Survei/Sensus</label>
-            <input
-              type="text"
-              name="nama_kegiatan"
-              id="nama_kegiatan"
-              value={formData.nama_kegiatan}
-              onChange={handleChange}
-              required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          
-          <div className="mb-4">
-            <label htmlFor="deskripsi" className="block text-sm font-medium text-gray-700">Deskripsi</label>
-            <textarea
-              name="deskripsi"
-              id="deskripsi"
-              value={formData.deskripsi}
-              onChange={handleChange}
-              rows="4"
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            ></textarea>
-          </div>
+      {/* Toggle Mode Input */}
+      <div className="bg-white p-1.5 rounded-xl shadow-sm border border-gray-200 inline-flex mb-8">
+        <button
+            type="button"
+            onClick={() => setModeInput('new')}
+            className={`px-5 py-2.5 rounded-lg text-sm font-bold transition flex items-center gap-2 ${modeInput === 'new' ? 'bg-[#1A2A80] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}
+        >
+            <FaPlus size={12} /> Buat Survei/Sensus Baru
+        </button>
+        <button
+            type="button"
+            onClick={() => setModeInput('existing')}
+            className={`px-5 py-2.5 rounded-lg text-sm font-bold transition flex items-center gap-2 ${modeInput === 'existing' ? 'bg-[#1A2A80] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}
+        >
+            <FaListAlt size={12} /> Pilih yang Sudah Ada
+        </button>
+      </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label htmlFor="tahun_anggaran" className="block text-sm font-medium text-gray-700">Tahun</label>
-              <input
-                type="number"
-                name="tahun_anggaran"
-                id="tahun_anggaran"
-                value={formData.tahun_anggaran}
-                onChange={handleChange}
-                required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="tanggal_mulai" className="block text-sm font-medium text-gray-700">Tgl Mulai</label>
-              <input
-                type="date"
-                name="tanggal_mulai"
-                id="tanggal_mulai"
-                value={formData.tanggal_mulai}
-                onChange={handleChange}
-                required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="tanggal_selesai" className="block text-sm font-medium text-gray-700">Tgl Sselesai</label>
-              <input
-                type="date"
-                name="tanggal_selesai"
-                id="tanggal_selesai"
-                value={formData.tanggal_selai}
-                onChange={handleChange}
-                required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Kolom 2: Sub Kegiatan & Honorarium */}
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* KOLOM KIRI: DETAIL INDUK */}
         <div className="space-y-6">
-          {showSubKegiatan && (
-            <PartSubKegiatan 
-              subKegiatans={subKegiatans} 
-              setSubKegiatans={setSubKegiatans} 
-            />
-          )}
+            <div className="bg-white shadow-sm rounded-xl border border-gray-100 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+                    <div className="bg-blue-100 text-[#1A2A80] p-2 rounded-lg">
+                        <FaLayerGroup />
+                    </div>
+                    <h2 className="text-lg font-bold text-gray-800">
+                        {modeInput === 'new' ? 'Detail Survei/Sensus Baru' : 'Pilih Survei/Sensus Induk'}
+                    </h2>
+                </div>
 
-          {/* --- 4. TEMPATKAN KOMPONEN BARU DI SINI --- */}
-          <PartAddHonor
-            honorariumData={honorariumData}
-            setHonorariumData={setHonorariumData}
-            isSubKegiatanActive={showSubKegiatan}
-          />
+                <div className="p-6">
+                    {modeInput === 'existing' ? (
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Pilih Survei/Sensus</label>
+                            <select
+                                value={selectedKegiatanId}
+                                onChange={(e) => setSelectedKegiatanId(e.target.value)}
+                                className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] bg-gray-50 transition outline-none"
+                                required
+                            >
+                                <option value="">-- Pilih dari daftar --</option>
+                                {existingKegiatanList.map(keg => (
+                                    <option key={keg.id} value={keg.id}>
+                                        {keg.nama_kegiatan}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-xs text-gray-500 mt-2 italic">
+                                Sub kegiatan yang dibuat akan ditambahkan ke dalam kegiatan yang Anda pilih di atas.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-5">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">Nama Survei/Sensus</label>
+                                <input
+                                    type="text"
+                                    name="nama_kegiatan"
+                                    value={formData.nama_kegiatan}
+                                    onChange={handleChange}
+                                    required={modeInput === 'new'}
+                                    placeholder="Contoh: Sensus Ekonomi 2026"
+                                    className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] transition outline-none"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">Deskripsi Singkat</label>
+                                <textarea
+                                    name="deskripsi"
+                                    value={formData.deskripsi}
+                                    onChange={handleChange}
+                                    rows="4"
+                                    placeholder="Jelaskan tujuan kegiatan..."
+                                    className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] transition outline-none resize-none"
+                                ></textarea>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
 
-        {/* Notifikasi dan Tombol Submit */}
-        <div className="md:col-span-2">
-          {error && <div className="text-red-600 mb-4">Error: {error}</div>}
-          {success && <div className="text-green-600 mb-4">{success}</div>}
+        {/* KOLOM KANAN: SUB KEGIATAN & HONOR */}
+        <div className="space-y-6">
+            {/* Toggle Sub Kegiatan */}
+            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
+                <div>
+                    <h3 className="text-sm font-bold text-gray-800">Tambahkan Rincian (Sub Kegiatan)</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Aktifkan untuk mengisi detail tahapan & honor.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        className="sr-only peer"
+                        checked={showSubKegiatan}
+                        onChange={handleToggleSubKegiatan}
+                    />
+                    <div className="w-12 h-7 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-100 peer-checked:bg-[#1A2A80] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all"></div>
+                </label>
+            </div>
 
-          <div className="text-right">
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400"
-            >
-              {loading ? 'Menyimpan...' : 'Simpan Survei/Sensus'}
-            </button>
-          </div>
+            {showSubKegiatan ? (
+                <div className="animate-fade-in-up space-y-6">
+                    <PartSubKegiatan 
+                        subKegiatans={subKegiatans} 
+                        setSubKegiatans={setSubKegiatans} 
+                    />
+                    
+                    <PartAddHonor
+                        subKegiatans={subKegiatans}
+                        honorariumMap={honorariumMap}
+                        setHonorariumMap={setHonorariumMap}
+                        isSubKegiatanActive={showSubKegiatan}
+                    />
+                </div>
+            ) : (
+                <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl p-8 text-center flex flex-col items-center justify-center h-48">
+                    <div className="text-gray-300 text-4xl mb-3"><FaListAlt /></div>
+                    <p className="text-gray-500 text-sm font-medium">Rincian Sub Kegiatan belum diaktifkan.</p>
+                </div>
+            )}
         </div>
+
+        {/* SUBMIT AREA */}
+        <div className="lg:col-span-2 pt-6 border-t border-gray-200 mt-2">
+            {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-4 border border-red-100 text-sm">{error}</div>}
+            {success && <div className="bg-green-50 text-green-600 px-4 py-3 rounded-lg mb-4 border border-green-100 text-sm">{success}</div>}
+
+            <div className="flex justify-end">
+                <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex items-center gap-2 bg-[#1A2A80] hover:bg-blue-900 text-white font-bold py-3 px-8 rounded-xl shadow-lg transform active:scale-95 transition disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                    {loading ? 'Memproses...' : (
+                        <>
+                            <FaSave /> {modeInput === 'new' ? 'Simpan Semua Data' : 'Simpan Sub Kegiatan'}
+                        </>
+                    )}
+                </button>
+            </div>
+        </div>
+
       </form>
     </div>
   );

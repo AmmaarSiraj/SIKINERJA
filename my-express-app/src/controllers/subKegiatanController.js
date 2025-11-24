@@ -17,15 +17,65 @@ const calculateRecruitmentStatus = (openDate, closeDate) => {
 };
 
 exports.createSubKegiatan = async (req, res) => {
+  // Ambil data dari body, perhatikan field tambahan untuk logika "baru/lama"
+  const { 
+    mode_kegiatan,       // 'existing' atau 'new'
+    id_kegiatan,         // Diisi jika mode 'existing' (dari dropdown)
+    nama_kegiatan_baru,  // Diisi jika mode 'new' (input text baru)
+    deskripsi_kegiatan,  // Opsional untuk kegiatan baru
+    
+    // Data Sub Kegiatan
+    nama_sub_kegiatan, 
+    deskripsi, 
+    periode, 
+    tanggal_mulai, 
+    tanggal_selesai, 
+    open_req, 
+    close_req 
+  } = req.body;
+
+  if (!nama_sub_kegiatan) {
+    return res.status(400).json({ message: 'Nama Sub Kegiatan wajib diisi' });
+  }
+
+  // Validasi Logika Kegiatan
+  if (mode_kegiatan === 'existing' && !id_kegiatan) {
+    return res.status(400).json({ message: 'Silakan pilih Kegiatan dari dropdown.' });
+  }
+  if (mode_kegiatan === 'new' && !nama_kegiatan_baru) {
+    return res.status(400).json({ message: 'Nama Kegiatan Baru wajib diisi.' });
+  }
+
+  let connection;
   try {
-    const { id_kegiatan, nama_sub_kegiatan, deskripsi, periode, tanggal_mulai, tanggal_selesai, open_req, close_req } = req.body;
-    if (!id_kegiatan || !nama_sub_kegiatan) {
-      return res.status(400).json({ message: 'ID Kegiatan and Nama Sub Kegiatan wajib diisi' });
+    // 1. Mulai Transaksi
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    let finalIdKegiatan = id_kegiatan;
+
+    // 2. Cek Mode: Jika 'new', Buat Kegiatan dulu
+    if (mode_kegiatan === 'new') {
+        const sqlKegiatan = `INSERT INTO kegiatan (nama_kegiatan, deskripsi) VALUES (?, ?)`;
+        const [kegResult] = await connection.query(sqlKegiatan, [
+            nama_kegiatan_baru, 
+            deskripsi_kegiatan || null
+        ]);
+        
+        // Ambil ID dari kegiatan yang barusan dibuat
+        finalIdKegiatan = kegResult.insertId;
     }
 
-    const sql = 'INSERT INTO subkegiatan (id_kegiatan, nama_sub_kegiatan, deskripsi, periode, tanggal_mulai, tanggal_selesai, open_req, close_req) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
-    const [result] = await pool.query(sql, [
-        id_kegiatan, 
+    // 3. Simpan Sub Kegiatan (menggunakan finalIdKegiatan)
+    // ID Subkegiatan akan digenerate otomatis oleh Trigger di Database (sub1, sub2, dst)
+    const sqlSub = `
+      INSERT INTO subkegiatan 
+      (id_kegiatan, nama_sub_kegiatan, deskripsi, periode, tanggal_mulai, tanggal_selesai, open_req, close_req) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    
+    await connection.query(sqlSub, [
+        finalIdKegiatan, 
         nama_sub_kegiatan, 
         deskripsi, 
         periode || null, 
@@ -35,15 +85,30 @@ exports.createSubKegiatan = async (req, res) => {
         close_req || null
     ]);
 
-    const [rows] = await pool.query('SELECT * FROM subkegiatan WHERE id_kegiatan = ? AND nama_sub_kegiatan = ? ORDER BY created_at DESC LIMIT 1', [id_kegiatan, nama_sub_kegiatan]);
+    // 4. Commit Transaksi (Simpan permanen)
+    await connection.commit();
+
+    // Ambil data terbaru untuk dikirim ke frontend
+    const [rows] = await pool.query(
+        'SELECT * FROM subkegiatan WHERE id_kegiatan = ? AND nama_sub_kegiatan = ? ORDER BY created_at DESC LIMIT 1', 
+        [finalIdKegiatan, nama_sub_kegiatan]
+    );
 
     res.status(201).json({
-      message: 'Sub Kegiatan berhasil ditambahkan',
+      message: mode_kegiatan === 'new' 
+        ? 'Kegiatan Baru & Sub Kegiatan berhasil dibuat' 
+        : 'Sub Kegiatan berhasil ditambahkan ke Kegiatan yang dipilih',
       data: rows[0],
+      id_kegiatan_parent: finalIdKegiatan // Info tambahan buat frontend
     });
+
   } catch (err) {
+    // Jika ada error, batalkan semua perubahan (termasuk kegiatan baru jika tadi dibuat)
+    if (connection) await connection.rollback();
     console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Gagal menyimpan data', error: err.message });
+  } finally {
+    if (connection) connection.release();
   }
 };
 

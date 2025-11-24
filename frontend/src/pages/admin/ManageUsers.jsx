@@ -1,6 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react'; // Tambah useRef
+// src/pages/admin/ManageUsers.jsx
+import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+// 1. IMPORT ICON
+import { FaDownload, FaFileUpload, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 
 const API_URL = 'http://localhost:3000/api';
 const getToken = () => localStorage.getItem('token');
@@ -8,10 +11,10 @@ const getToken = () => localStorage.getItem('token');
 const ManageUsers = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [uploading, setUploading] = useState(false); // State upload
+    const [uploading, setUploading] = useState(false);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
-    const fileInputRef = useRef(null); // Ref input file
+    const fileInputRef = useRef(null);
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -48,7 +51,6 @@ const ManageUsers = () => {
         }
     };
 
-    // --- LOGIC BARU: IMPORT & TEMPLATE ---
     const handleDownloadTemplate = () => {
         const csvHeader = "username,email,password,role";
         const csvRows = [
@@ -93,7 +95,7 @@ const ManageUsers = () => {
                 msg += `\n\nDetail Error:\n` + errors.slice(0, 3).join('\n') + (errors.length > 3 ? '\n...' : '');
             }
             alert(msg);
-            fetchUsers(); // Refresh data
+            fetchUsers();
 
         } catch (err) {
             console.error(err);
@@ -111,90 +113,104 @@ const ManageUsers = () => {
     const formatDate = (dateString) => {
         if (!dateString) return '';
         return new Date(dateString).toLocaleDateString('id-ID', {
-            year: 'numeric', month: 'long', day: 'numeric',
+            year: 'numeric', month: 'short', day: 'numeric',
         });
     };
 
-    if (loading) return <div className="text-center py-8">Memuat data...</div>;
-    if (error) return <div className="text-center py-8 text-red-600">Error: {error}</div>;
+    if (loading) return <div className="text-center py-10 text-gray-500">Memuat data...</div>;
+    if (error) return <div className="text-center py-10 text-red-600">Error: {error}</div>;
 
     return (
-        <div className="container mx-auto p-4 max-w-6xl">
-            {/* Input File Hidden */}
+        <div className="w-full">
             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".csv, .xlsx, .xls" className="hidden" />
 
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold">Manajemen Pengguna</h1>
+            {/* Header Actions */}
+            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <div className="text-gray-500 text-sm">
+                    Kelola akun untuk admin dan mitra statistik.
+                </div>
                 
                 <div className="flex gap-2">
                     <button 
                         onClick={handleDownloadTemplate}
-                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded text-sm font-medium border border-gray-300 transition"
+                        className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 transition shadow-sm"
                     >
-                        📥 Template CSV
+                        <FaDownload /> Template CSV
                     </button>
                     <button 
                         onClick={handleImportClick}
                         disabled={uploading}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-bold transition disabled:opacity-50"
+                        className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm disabled:opacity-50"
                     >
-                        {uploading ? 'Mengupload...' : '📤 Import Excel'}
+                        <FaFileUpload /> {uploading ? '...' : 'Import Excel'}
                     </button>
                     <button
                         onClick={() => navigate('/admin/users/add')}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm transition"
+                        className="flex items-center gap-2 bg-[#1A2A80] hover:bg-blue-900 text-white font-bold px-4 py-2 rounded-lg text-sm transition shadow-sm"
                     >
-                        + Tambah Manual
+                        <FaPlus /> Tambah Manual
                     </button>
                 </div>
             </div>
 
-            <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+            {/* Tabel */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal Daftar</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Username</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Email</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Role</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tanggal Daftar</th>
+                            <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Aksi</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {users.map((user) => (
-                            <tr key={user.id} onClick={() => navigate(`/admin/users/${user.id}/detail`)} className="hover:bg-gray-100 cursor-pointer">
+                            <tr 
+                                key={user.id} 
+                                onClick={() => navigate(`/admin/users/${user.id}/detail`)} 
+                                className="hover:bg-blue-50/50 cursor-pointer transition-colors"
+                            >
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm font-medium text-gray-900">{user.username}</div>
+                                    <div className="text-sm font-bold text-gray-900">{user.username}</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-900">{user.email}</div>
+                                    <div className="text-sm text-gray-500">{user.email}</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'} capitalize`}>
+                                    <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-bold rounded-full ${user.role === 'admin' ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-green-100 text-green-800 border border-green-200'} capitalize`}>
                                         {user.role}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                                     {formatDate(user.created_at)}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); navigate(`/admin/edit-user/${user.id}`); }}
-                                        className="text-indigo-600 hover:text-indigo-900 mr-4"
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); handleDelete(user.id); }}
-                                        className="text-red-600 hover:text-red-900"
-                                    >
-                                        Hapus
-                                    </button>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <div className="flex justify-end gap-3">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); navigate(`/admin/edit-user/${user.id}`); }}
+                                            className="text-indigo-600 hover:text-indigo-900 p-1 rounded hover:bg-indigo-50 transition"
+                                            title="Edit User"
+                                        >
+                                            <FaEdit size={18} />
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDelete(user.id); }}
+                                            className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition"
+                                            title="Hapus User"
+                                        >
+                                            <FaTrash size={18} />
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
+                {users.length === 0 && (
+                    <div className="p-10 text-center text-gray-400 italic">Belum ada data pengguna.</div>
+                )}
             </div>
         </div>
     );

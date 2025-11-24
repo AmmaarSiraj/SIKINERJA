@@ -1,152 +1,222 @@
-import React, { useEffect, useState, useRef } from 'react';
+// src/pages/admin/DetailPengajuanMitra.jsx
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom'; // Hapus Link jika tidak dipakai di tombol
-import * as XLSX from 'xlsx'; 
+// 1. IMPORT ICON
+import { 
+  FaArrowLeft, 
+  FaCheck, 
+  FaTimes, 
+  FaUserClock, 
+  FaMoneyBillWave, 
+  FaIdCard 
+} from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-const ManajemenMitra = () => {
-  const [mitraList, setMitraList] = useState([]);
+const DetailPengajuanMitra = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
-  const fileInputRef = useRef(null); 
-  const navigate = useNavigate(); // Hook navigasi
+  const [processing, setProcessing] = useState(false);
 
-  // Fetch data (Kode sama seperti sebelumnya)
-  const fetchMitra = async () => {
-    setLoading(true);
+  // State untuk Form Approval
+  const [batasHonor, setBatasHonor] = useState('');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`${API_URL}/api/pengajuan-mitra/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setData(response.data);
+      } catch (err) {
+        console.error(err);
+        setError("Gagal memuat data pengajuan.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [id]);
+
+  const handleApprove = async (e) => {
+    e.preventDefault();
+    if (!batasHonor) return alert("Harap tentukan batas honor bulanan!");
+    if (!window.confirm("Yakin setujui calon mitra ini?")) return;
+
+    setProcessing(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/mitra`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setMitraList(response.data);
+      await axios.post(
+        `${API_URL}/api/pengajuan-mitra/${id}/approve`,
+        { batas_honor_bulanan: parseInt(batasHonor) },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      alert("Pengajuan berhasil disetujui! Mitra resmi terdaftar.");
+      navigate('/admin/pengajuan-mitra');
     } catch (err) {
-      console.error("Gagal memuat data:", err);
-      setError("Gagal memuat data mitra.");
+      console.error(err);
+      alert(err.response?.data?.error || "Gagal memproses persetujuan.");
     } finally {
-      setLoading(false);
+      setProcessing(false);
     }
   };
 
-  useEffect(() => {
-    fetchMitra();
-  }, []);
-
-  // ... (Fungsi Export, Import, HandleFileChange TETAP SAMA, salin dari kode sebelumnya) ...
-  const handleExport = () => { /* ...kode export... */ 
-    const dataToExport = mitraList.map(m => ({
-      "Nama Lengkap": m.nama_lengkap, "NIK": m.nik, "Alamat": m.alamat,
-      "No HP": m.no_hp, "Email": m.email, "Bank": m.nama_bank,
-      "No Rekening": m.no_rekening, "Batas Honor": m.batas_honor_bulanan
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Data Mitra");
-    XLSX.writeFile(workbook, "Data_Mitra_Sikinerja.xlsx");
+  // Opsi Reject (Jika backend mendukung update status reject, sesuaikan endpointnya)
+  // Saat ini saya buat tombol dummy/logika sederhana
+  const handleReject = () => {
+     if(window.confirm("Fitur tolak belum terhubung ke API. Apakah Anda ingin kembali?")) {
+         navigate('/admin/pengajuan-mitra');
+     }
   };
 
-  const handleImportClick = () => fileInputRef.current.click();
-
-  const handleFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    setUploading(true);
-    try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/api/mitra/import`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` }
-      });
-      alert('Import Berhasil!'); fetchMitra(); 
-    } catch (err) { alert('Gagal import'); } 
-    finally { setUploading(false); e.target.value = null; }
-  };
-
-  const handleDelete = async (id, e) => {
-    e.stopPropagation(); // PENTING: Agar klik tombol hapus tidak memicu klik baris (detail)
-    if (!window.confirm("Yakin hapus mitra ini?")) return;
-    try {
-        const token = localStorage.getItem('token');
-        await axios.delete(`${API_URL}/api/mitra/${id}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        setMitraList(prev => prev.filter(m => m.id !== id));
-    } catch (err) { alert("Gagal menghapus mitra."); }
-  };
-
-  // --- NAVIGASI KE DETAIL ---
-  const handleRowClick = (id) => {
-    navigate(`/admin/mitra/${id}`);
-  };
-
-  if (loading) return <div className="p-8 text-center">Memuat data...</div>;
+  if (loading) return <div className="text-center py-10 text-gray-500">Memuat detail...</div>;
+  if (error) return <div className="text-center py-10 text-red-600">{error}</div>;
+  if (!data) return <div className="text-center py-10 text-gray-500">Data tidak ditemukan.</div>;
 
   return (
-    <div className="p-8">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <h1 className="text-3xl font-bold text-gray-800">Manajemen Mitra</h1>
-        <div className="flex gap-2">
-          <button onClick={handleExport} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm transition">📥 Export Excel</button>
-          <button onClick={handleImportClick} disabled={uploading} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition disabled:bg-gray-400">
-            {uploading ? 'Mengupload...' : '📤 Import Excel'}
-          </button>
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".xlsx, .xls" className="hidden" />
-        </div>
-      </div>
+    <div className="max-w-4xl mx-auto w-full">
       
-      {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
+      {/* Tombol Kembali */}
+      <div className="mb-6">
+        <Link 
+          to="/admin/pengajuan-mitra" 
+          className="inline-flex items-center gap-2 text-gray-500 hover:text-[#1A2A80] transition font-medium"
+        >
+          <FaArrowLeft size={14} /> Kembali ke Daftar
+        </Link>
+      </div>
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Lengkap</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">NIK</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontak</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Bank</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. Rekening</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {mitraList.length === 0 ? (
-                <tr><td colSpan="6" className="px-6 py-10 text-center text-gray-500 italic">Belum ada data mitra.</td></tr>
-            ) : (
-                mitraList.map((mitra) => (
-                <tr 
-                    key={mitra.id} 
-                    onClick={() => handleRowClick(mitra.id)} // <--- TAMBAHKAN INI
-                    className="hover:bg-blue-50 transition cursor-pointer" // Tambahkan cursor-pointer
-                >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{mitra.nama_lengkap}</div>
-                        <div className="text-xs text-gray-500">{mitra.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{mitra.nik}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{mitra.no_hp}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{mitra.nama_bank}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono bg-gray-50 rounded">
-                        {mitra.no_rekening}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button 
-                            onClick={(e) => handleDelete(mitra.id, e)} // Pass 'e' untuk stopPropagation
-                            className="text-red-600 hover:text-red-900 z-10 relative"
-                        >
-                            Hapus
-                        </button>
-                    </td>
-                </tr>
-                ))
+      {/* Card Utama */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        
+        {/* Header Card */}
+        <div className="px-8 py-6 bg-gray-50/50 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600 text-xl">
+              <FaUserClock />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">{data.nama_lengkap}</h1>
+              <p className="text-sm text-gray-500 flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 text-xs font-bold uppercase">
+                  {data.status}
+                </span>
+                <span>• Diajukan pada {new Date(data.created_at).toLocaleDateString('id-ID')}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
+          
+          {/* Kolom Kiri: Data Diri */}
+          <div>
+            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <FaIdCard /> Data Pribadi
+            </h3>
+            <div className="space-y-4">
+              <div className="group">
+                <label className="block text-xs text-gray-500 mb-1">NIK</label>
+                <p className="text-base font-medium text-gray-900 font-mono bg-gray-50 p-2 rounded border border-transparent group-hover:border-gray-200 transition">
+                  {data.nik}
+                </p>
+              </div>
+              <div className="group">
+                <label className="block text-xs text-gray-500 mb-1">Email</label>
+                <p className="text-base font-medium text-gray-900 bg-gray-50 p-2 rounded border border-transparent group-hover:border-gray-200 transition">
+                  {data.email}
+                </p>
+              </div>
+              <div className="group">
+                <label className="block text-xs text-gray-500 mb-1">No. Handphone</label>
+                <p className="text-base font-medium text-gray-900 bg-gray-50 p-2 rounded border border-transparent group-hover:border-gray-200 transition">
+                  {data.no_hp}
+                </p>
+              </div>
+              <div className="group">
+                <label className="block text-xs text-gray-500 mb-1">Alamat Lengkap</label>
+                <p className="text-base font-medium text-gray-900 bg-gray-50 p-2 rounded border border-transparent group-hover:border-gray-200 transition">
+                  {data.alamat}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Kolom Kanan: Data Bank & Approval */}
+          <div className="flex flex-col h-full">
+            <div className="mb-8">
+              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <FaMoneyBillWave /> Informasi Rekening
+              </h3>
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-blue-600 mb-1">Nama Bank</label>
+                    <p className="text-sm font-bold text-gray-800">{data.nama_bank}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-blue-600 mb-1">No. Rekening</label>
+                    <p className="text-sm font-bold text-gray-800 font-mono">{data.no_rekening}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Form Approval (Hanya muncul jika status pending) */}
+            {data.status === 'pending' && (
+              <div className="mt-auto pt-6 border-t border-gray-100">
+                <h3 className="text-sm font-bold text-gray-800 mb-3">Tindak Lanjut</h3>
+                
+                <form onSubmit={handleApprove} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tetapkan Batas Honor Bulanan (Rp) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      placeholder="Contoh: 3000000"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none transition"
+                      value={batasHonor}
+                      onChange={(e) => setBatasHonor(e.target.value)}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Wajib diisi sebelum menyetujui.</p>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleReject}
+                      disabled={processing}
+                      className="flex-1 py-2.5 px-4 border border-red-200 text-red-600 font-bold rounded-lg hover:bg-red-50 transition flex justify-center items-center gap-2 disabled:opacity-50"
+                    >
+                      <FaTimes /> Tolak
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={processing}
+                      className="flex-[2] py-2.5 px-4 bg-[#1A2A80] text-white font-bold rounded-lg hover:bg-blue-900 transition flex justify-center items-center gap-2 shadow-md disabled:opacity-50"
+                    >
+                      {processing ? 'Memproses...' : <><FaCheck /> Setujui & Aktifkan</>}
+                    </button>
+                  </div>
+                </form>
+              </div>
             )}
-          </tbody>
-        </table>
+          </div>
+
+        </div>
       </div>
     </div>
   );
 };
 
-export default ManajemenMitra;
+export default DetailPengajuanMitra;

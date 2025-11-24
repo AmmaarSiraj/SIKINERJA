@@ -1,6 +1,18 @@
+// src/pages/admin/DetailMitra.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+// 1. IMPORT ICON
+import { 
+  FaArrowLeft, 
+  FaTrash, 
+  FaUserTie, 
+  FaIdCard, 
+  FaPhone, 
+  FaEnvelope, 
+  FaMoneyCheckAlt, 
+  FaCoins 
+} from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -45,84 +57,111 @@ const DetailMitra = () => {
     }
   };
 
-  if (loading) return <div className="p-8 text-center">Memuat detail...</div>;
-  if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
-  if (!mitra) return <div className="p-8 text-center">Data tidak ditemukan.</div>;
+  if (loading) return <div className="text-center py-10 text-gray-500">Memuat detail...</div>;
+  if (error) return <div className="text-center py-10 text-red-600">{error}</div>;
+  if (!mitra) return <div className="text-center py-10 text-gray-500">Data tidak ditemukan.</div>;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <Link to="/admin/pengajuan-mitra" className="text-indigo-600 hover:underline mb-4 inline-block">
-        &larr; Kembali ke Daftar Mitra
-      </Link>
+    <div className="max-w-4xl mx-auto w-full">
+      
+      {/* Tombol Kembali */}
+      <div className="mb-6">
+        <Link 
+          to="/admin/pengajuan-mitra" 
+          className="inline-flex items-center gap-2 text-gray-500 hover:text-[#1A2A80] transition font-medium"
+        >
+          <FaArrowLeft size={14} /> Kembali ke Daftar Mitra
+        </Link>
+      </div>
 
-      <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-200">
+      {/* Card Utama */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        
         {/* Header Card */}
-        <div className="bg-indigo-600 px-6 py-4 flex justify-between items-center text-white">
-            <div>
-                <h1 className="text-2xl font-bold">{mitra.nama_lengkap}</h1>
-                <p className="text-indigo-200 text-sm mt-1">{mitra.jabatan || 'Mitra'}</p>
+        <div className="px-8 py-6 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
+            <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center text-[#1A2A80] text-2xl shadow-sm border border-blue-100">
+                    <FaUserTie />
+                </div>
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-800">{mitra.nama_lengkap}</h1>
+                    <p className="text-sm text-gray-500">{mitra.jabatan || 'Mitra Statistik'}</p>
+                </div>
             </div>
-            <div className="text-right">
-                 <span className="bg-indigo-500 px-3 py-1 rounded text-xs font-mono">ID: {mitra.id}</span>
+            <div className="text-right hidden sm:block">
+                 <span className="bg-gray-200 text-gray-600 px-3 py-1 rounded text-xs font-mono font-bold">ID: {mitra.id}</span>
             </div>
         </div>
 
-        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Informasi Pribadi */}
+        {/* Konten Detail */}
+        <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
+            
+            {/* Kolom Kiri: Data Pribadi */}
             <div>
-                <h3 className="text-gray-500 font-bold uppercase text-xs tracking-wider mb-3 border-b pb-2">Data Pribadi</h3>
-                <dl className="space-y-3 text-sm">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <FaIdCard /> Data Pribadi
+                </h3>
+                <div className="space-y-5">
                     <div>
-                        <dt className="text-gray-500">NIK</dt>
-                        <dd className="font-medium text-gray-900">{mitra.nik}</dd>
+                        <label className="block text-xs text-gray-500 mb-1 font-medium">NIK</label>
+                        <div className="text-base font-bold text-gray-800 font-mono bg-gray-50 p-2 rounded border border-dashed border-gray-200 inline-block">
+                            {mitra.nik}
+                        </div>
                     </div>
                     <div>
-                        <dt className="text-gray-500">Alamat</dt>
-                        <dd className="font-medium text-gray-900">{mitra.alamat}</dd>
+                        <label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1"><FaPhone size={10}/> No. Handphone</label>
+                        <p className="text-base font-medium text-gray-900">{mitra.no_hp}</p>
                     </div>
                     <div>
-                        <dt className="text-gray-500">No. HP</dt>
-                        <dd className="font-medium text-gray-900">{mitra.no_hp}</dd>
+                        <label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1"><FaEnvelope size={10}/> Email</label>
+                        <p className="text-base font-medium text-gray-900">{mitra.email}</p>
                     </div>
                     <div>
-                        <dt className="text-gray-500">Email</dt>
-                        <dd className="font-medium text-gray-900">{mitra.email}</dd>
+                        <label className="block text-xs text-gray-500 mb-1 font-medium">Alamat</label>
+                        <p className="text-sm font-medium text-gray-700 leading-relaxed">{mitra.alamat}</p>
                     </div>
-                </dl>
+                </div>
             </div>
 
-            {/* Informasi Keuangan */}
+            {/* Kolom Kanan: Data Keuangan */}
             <div>
-                <h3 className="text-gray-500 font-bold uppercase text-xs tracking-wider mb-3 border-b pb-2">Data Keuangan</h3>
-                <dl className="space-y-3 text-sm">
-                    <div>
-                        <dt className="text-gray-500">Nama Bank</dt>
-                        <dd className="font-medium text-gray-900">{mitra.nama_bank}</dd>
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-2 border-b border-gray-100 pb-2">
+                    <FaMoneyCheckAlt /> Informasi Keuangan
+                </h3>
+                <div className="space-y-5">
+                    <div className="p-5 bg-blue-50 rounded-xl border border-blue-100">
+                        <div className="grid grid-cols-1 gap-4">
+                            <div>
+                                <label className="block text-xs text-blue-600 mb-1 font-bold">BANK</label>
+                                <p className="text-lg font-bold text-gray-800">{mitra.nama_bank}</p>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-blue-600 mb-1 font-bold">NO. REKENING</label>
+                                <p className="text-lg font-mono font-medium text-gray-800 tracking-wide">{mitra.no_rekening}</p>
+                            </div>
+                        </div>
                     </div>
+
                     <div>
-                        <dt className="text-gray-500">Nomor Rekening</dt>
-                        <dd className="font-medium text-gray-900 bg-gray-50 p-2 rounded border border-gray-200 inline-block">
-                            {mitra.no_rekening}
-                        </dd>
-                    </div>
-                    <div>
-                        <dt className="text-gray-500">Batas Honor Bulanan</dt>
-                        <dd className="font-bold text-green-600 text-lg">
+                        <label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1">
+                            <FaCoins size={10} /> Batas Honor Bulanan
+                        </label>
+                        <div className="text-2xl font-extrabold text-green-600">
                             Rp {Number(mitra.batas_honor_bulanan).toLocaleString('id-ID')}
-                        </dd>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">Maksimal honor yang dapat diterima per bulan.</p>
                     </div>
-                </dl>
+                </div>
             </div>
         </div>
         
         {/* Footer Actions */}
-        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-             {/* Jika ingin edit, bisa diarahkan ke halaman edit user atau buat popup */}
+        <div className="bg-gray-50 px-8 py-5 border-t border-gray-100 flex justify-end">
              <button 
                 onClick={handleDelete}
-                className="px-4 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200 text-sm font-bold transition"
+                className="flex items-center gap-2 px-5 py-2.5 bg-white text-red-600 border border-red-200 rounded-lg hover:bg-red-50 hover:border-red-300 text-sm font-bold transition shadow-sm"
              >
-                Hapus Mitra
+                <FaTrash size={12} /> Hapus Mitra
              </button>
         </div>
       </div>

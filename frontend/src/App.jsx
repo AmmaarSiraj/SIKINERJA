@@ -27,6 +27,7 @@ import SettingLaporan from './pages/admin/SettingLaporan';
 import BuatTemplate from './pages/admin/BuatTemplate';
 import DetailKegiatanUser from './pages/DetailKegiatanUser';
 import DetailMitra from './pages/admin/DetailMitra';
+import TemplatePenugasan from './pages/admin/TemplatePenugasan';
 
 // Import Layout
 import Layout from './layouts/Layout';
@@ -60,6 +61,7 @@ function AppRoutes() {
           <Route path="/admin/manage-kegiatan/tambah" element={<AddKegiatan />} />
           <Route path="/admin/manage-kegiatan/edit/:id" element={<EditKegiatan />} />
           <Route path="/admin/manage-kegiatan/detail/:id" element={<DetailKegiatan />} />
+          <Route path="/admin/penugasan/preview" element={<TemplatePenugasan />} />
           
           {/* --- Manajemen Penugasan --- */}
           <Route path="/admin/penugasan" element={<Penugasan />} />

@@ -6,8 +6,11 @@ const {
   getSubKegiatanById,
   updateSubKegiatanStatus,
   deleteSubKegiatan,
-  getAllSubKegiatan
+  getAllSubKegiatan,
+  importSubKegiatan
 } = require('../controllers/subKegiatanController');
+
+const uploadMitra = require('../midleware/uploadMitra');
 
 // Endpoint yang kita butuhkan untuk halaman detail
 router.get('/kegiatan/:id_kegiatan', getSubKegiatanByKegiatanId);
@@ -18,5 +21,11 @@ router.post('/', createSubKegiatan);
 router.delete('/:id', deleteSubKegiatan);
 router.get('/:id', getSubKegiatanById);
 router.get('/', getAllSubKegiatan);
+
+
+router.post('/import', 
+    uploadMitra.single('file'), 
+    importSubKegiatan
+);
 
 module.exports = router;

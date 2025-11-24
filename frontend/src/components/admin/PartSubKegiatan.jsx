@@ -1,29 +1,24 @@
 import React from 'react';
 
-/**
- * Komponen ini adalah "controlled component".
- * State-nya (array subKegiatans) dikelola oleh komponen induk (AddKegiatan.jsx).
- * Menerima props:
- * - subKegiatans: Array dari objek sub-kegiatan
- * - setSubKegiatans: Fungsi setter dari useState di induk
- */
 const PartSubKegiatan = ({ subKegiatans, setSubKegiatans }) => {
   
-  // Fungsi untuk menambah field sub-kegiatan baru
   const addSubKegiatan = () => {
     setSubKegiatans([
       ...subKegiatans,
-      // id sementara hanya untuk React key, tidak akan dikirim ke DB
-      { id: Date.now(), nama_sub_kegiatan: '', deskripsi: '' } 
+      { 
+        id: Date.now(), 
+        nama_sub_kegiatan: '', 
+        deskripsi: '',
+        open_req: '',  // Default kosong
+        close_req: ''  // Default kosong
+      } 
     ]);
   };
 
-  // Fungsi untuk menghapus field sub-kegiatan berdasarkan id sementaranya
   const removeSubKegiatan = (id) => {
     setSubKegiatans(subKegiatans.filter(sub => sub.id !== id));
   };
 
-  // Fungsi untuk meng-update data di salah satu field
   const handleChange = (id, event) => {
     const { name, value } = event.target;
     setSubKegiatans(
@@ -35,53 +30,75 @@ const PartSubKegiatan = ({ subKegiatans, setSubKegiatans }) => {
 
   return (
     <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-xl font-semibold mb-4">Daftar Kegiatan</h2>
+      <h2 className="text-xl font-semibold mb-4">Daftar Kegiatan & Jadwal Rekrutmen</h2>
       
       <div className="space-y-4 mb-4">
         {subKegiatans.map((sub, index) => (
-          <div key={sub.id} className="p-4 border rounded-md relative">
+          <div key={sub.id} className="p-4 border rounded-md relative bg-gray-50">
             <h3 className="font-medium text-gray-800 mb-2">Kegiatan #{index + 1}</h3>
             
-            {/* Tombol Hapus */}
-            {subKegiatans.length > 1 && ( // Hanya tampilkan jika lebih dari 1
+            {subKegiatans.length > 1 && (
               <button
                 type="button"
                 onClick={() => removeSubKegiatan(sub.id)}
                 className="absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold text-lg"
-                title="Hapus Sub Kegiatan"
               >
                 &times;
               </button>
             )}
 
-            {/* Form Fields */}
-            <div className="mb-2">
-              <label htmlFor={`nama_sub_kegiatan_${sub.id}`} className="block text-sm font-medium text-gray-700">
-                Nama Kegiatan (Wajib)
-              </label>
-              <input
-                type="text"
-                id={`nama_sub_kegiatan_${sub.id}`}
-                name="nama_sub_kegiatan"
-                value={sub.nama_sub_kegiatan}
-                onChange={(e) => handleChange(sub.id, e)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                required
-              />
+            {/* Nama & Deskripsi */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Nama Kegiatan (Wajib)</label>
+                    <input
+                        type="text"
+                        name="nama_sub_kegiatan"
+                        value={sub.nama_sub_kegiatan}
+                        onChange={(e) => handleChange(sub.id, e)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        required
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Deskripsi</label>
+                    <input
+                        type="text"
+                        name="deskripsi"
+                        value={sub.deskripsi}
+                        onChange={(e) => handleChange(sub.id, e)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    />
+                </div>
             </div>
-            <div>
-              <label htmlFor={`deskripsi_${sub.id}`} className="block text-sm font-medium text-gray-700">
-                Deskripsi
-              </label>
-              <textarea
-                id={`deskripsi_${sub.id}`}
-                name="deskripsi"
-                value={sub.deskripsi}
-                onChange={(e) => handleChange(sub.id, e)}
-                rows="2"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              ></textarea>
+
+            {/* Jadwal Rekrutmen (NEW) */}
+            <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                <p className="text-xs font-bold text-blue-700 mb-2 uppercase">Jadwal Open Recruitment (Pendaftaran)</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs font-medium text-gray-600">Buka Pendaftaran</label>
+                        <input
+                            type="date"
+                            name="open_req"
+                            value={sub.open_req}
+                            onChange={(e) => handleChange(sub.id, e)}
+                            className="mt-1 block w-full px-3 py-1.5 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-600">Tutup Pendaftaran</label>
+                        <input
+                            type="date"
+                            name="close_req"
+                            value={sub.close_req}
+                            onChange={(e) => handleChange(sub.id, e)}
+                            className="mt-1 block w-full px-3 py-1.5 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        />
+                    </div>
+                </div>
             </div>
+
           </div>
         ))}
       </div>
@@ -89,7 +106,7 @@ const PartSubKegiatan = ({ subKegiatans, setSubKegiatans }) => {
       <button
         type="button"
         onClick={addSubKegiatan}
-        className="w-full py-2 px-4 border border-dashed border-gray-400 text-gray-700 rounded-md hover:bg-gray-50"
+        className="w-full py-2 px-4 border border-dashed border-gray-400 text-gray-700 rounded-md hover:bg-gray-50 transition"
       >
         + Tambah Kegiatan Lain
       </button>

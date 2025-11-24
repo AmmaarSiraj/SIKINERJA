@@ -1,6 +1,8 @@
 const { pool } = require('../config/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const XLSX = require('xlsx');
+const fs = require('fs');
 
 const registerUser = async (req, res) => {
   try {
@@ -179,6 +181,100 @@ const deleteUser = async (req, res) => {
   }
 };
 
+const importUsers = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'File tidak ditemukan.' });
+  }
+
+  let connection;
+  try {
+    const workbook = XLSX.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+
+    if (data.length === 0) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: 'File kosong.' });
+    }
+
+    connection = await pool.getConnection();
+
+    let successCount = 0;
+    let failCount = 0;
+    let errors = [];
+
+    console.log(`[IMPORT USERS] Memproses ${data.length} baris...`);
+
+    for (const [index, row] of data.entries()) {
+      const rowNum = index + 2;
+      
+      // Normalisasi Key (Lowercase & Trim)
+      const cleanRow = {};
+      Object.keys(row).forEach(key => cleanRow[key.trim().toLowerCase()] = row[key]);
+
+      // Ambil Kolom: username, email, password, role
+      const username = cleanRow['username'];
+      const email = cleanRow['email'];
+      const rawPassword = cleanRow['password']; // Password mentah
+      let role = cleanRow['role'] ? cleanRow['role'].toLowerCase() : 'user';
+
+      // Validasi Dasar
+      if (!username || !email || !rawPassword) {
+        failCount++;
+        errors.push(`Baris ${rowNum}: Username, Email, atau Password kosong.`);
+        continue;
+      }
+
+      // Validasi Role (Hanya boleh 'admin' atau 'user')
+      if (role !== 'admin' && role !== 'user') {
+        role = 'user'; // Default ke user jika typo
+      }
+
+      try {
+        // 1. Cek Duplikasi Email/Username
+        const [existing] = await connection.query(
+          'SELECT id FROM users WHERE email = ? OR username = ?', 
+          [email, username]
+        );
+        
+        if (existing.length > 0) {
+          throw new Error(`Username atau Email sudah terdaftar.`);
+        }
+
+        // 2. Hash Password (PENTING!)
+        const hashedPassword = await bcrypt.hash(String(rawPassword), 10);
+
+        // 3. Insert ke Database
+        await connection.query(
+          'INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)',
+          [username, email, hashedPassword, role]
+        );
+
+        successCount++;
+
+      } catch (rowErr) {
+        failCount++;
+        errors.push(`Baris ${rowNum} (${username}): ${rowErr.message}`);
+      }
+    }
+
+    fs.unlinkSync(req.file.path);
+    res.json({
+        message: 'Proses import user selesai.',
+        successCount,
+        failCount,
+        errors
+    });
+
+  } catch (error) {
+    console.error(error);
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ message: 'Terjadi kesalahan server.', details: error.message });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -186,4 +282,5 @@ module.exports = {
   getUserById,
   updateUser,
   deleteUser,
+  importUsers,
 };

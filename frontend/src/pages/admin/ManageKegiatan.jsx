@@ -1,8 +1,7 @@
-// src/pages/admin/ManageKegiatan.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-// 1. IMPORT ICON
+import Swal from 'sweetalert2';
 import { 
   FaDownload, 
   FaFileUpload, 
@@ -17,23 +16,15 @@ import {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const ManageKegiatan = () => {
-  // --- STATE ---
   const [kegiatan, setKegiatan] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // State untuk Accordion / Dropdown
   const [expandedRow, setExpandedRow] = useState(null); 
   const [subKegiatanMap, setSubKegiatanMap] = useState({}); 
   const [loadingSub, setLoadingSub] = useState(false);
-
-  // State untuk Import
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
-
   const navigate = useNavigate();
-
-  // --- FUNGSI DATA ---
 
   const fetchKegiatan = async () => {
     setLoading(true);
@@ -58,27 +49,46 @@ const ManageKegiatan = () => {
     fetchKegiatan();
   }, []);
 
-  // --- HANDLERS UTAMA ---
-
   const handleDelete = async (e, id) => {
     e.stopPropagation(); 
-    if (!window.confirm('Apakah Anda yakin ingin menghapus Survei/Sensus ini beserta seluruh sub kegiatannya?')) return;
+    
+    const result = await Swal.fire({
+      title: 'Apakah Anda yakin?',
+      text: "Data Survei/Sensus ini beserta seluruh sub kegiatannya akan dihapus permanen!",
+      icon: 'warning',
+      showCancelButton: true,
+      reverseButtons: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Ya, Hapus!',
+      cancelButtonText: 'Batal'
+    });
 
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/api/kegiatan/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    if (result.isConfirmed) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.delete(`${API_URL}/api/kegiatan/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      setKegiatan(prev => prev.filter(item => item.id !== id));
-      
-      const newSubMap = { ...subKegiatanMap };
-      delete newSubMap[id];
-      setSubKegiatanMap(newSubMap);
-      
-      alert('Survei/Sensus berhasil dihapus');
-    } catch (err) {
-      alert(err.response?.data?.message || err.message);
+        setKegiatan(prev => prev.filter(item => item.id !== id));
+        
+        const newSubMap = { ...subKegiatanMap };
+        delete newSubMap[id];
+        setSubKegiatanMap(newSubMap);
+        
+        Swal.fire(
+          'Terhapus!',
+          'Survei/Sensus berhasil dihapus.',
+          'success'
+        );
+      } catch (err) {
+        Swal.fire(
+          'Gagal!',
+          err.response?.data?.message || err.message,
+          'error'
+        );
+      }
     }
   };
 
@@ -110,8 +120,6 @@ const ManageKegiatan = () => {
   const handleSubRowClick = (subId) => {
     navigate(`/admin/manage-kegiatan/detail/${subId}`);
   };
-
-  // --- HANDLERS IMPORT ---
 
   const handleDownloadTemplate = () => {
     const csvHeader = "nama_kegiatan,nama_sub_kegiatan,deskripsi,periode,tanggal_mulai,tanggal_selesai,open_req,close_req";
@@ -153,29 +161,31 @@ const ManageKegiatan = () => {
 
       const { successCount, failCount, createdKegiatanCount, errors } = response.data;
       
-      let msg = `Import Selesai!\n✅ Sub Kegiatan Masuk: ${successCount}`;
-      if (createdKegiatanCount > 0) msg += `\n🆕 Kegiatan Baru Dibuat: ${createdKegiatanCount}`;
-      msg += `\n❌ Gagal: ${failCount}`;
+      let msgHTML = `<b>Sub Kegiatan Masuk:</b> ${successCount}`;
+      if (createdKegiatanCount > 0) msgHTML += `<br/><b>Kegiatan Baru Dibuat:</b> ${createdKegiatanCount}`;
+      msgHTML += `<br/><b>Gagal:</b> ${failCount}`;
       
       if (errors && errors.length > 0) {
-        msg += `\n\nDetail Error (3 Teratas):\n` + errors.slice(0, 3).join('\n');
+        msgHTML += `<br/><br/><div style="text-align:left; max-height:100px; overflow-y:auto; font-size:12px; background:#f9f9f9; padding:5px;">${errors.slice(0, 3).join('<br/>')}${errors.length > 3 ? '<br/>...' : ''}</div>`;
       }
-      alert(msg);
+
+      Swal.fire({
+        title: 'Import Selesai',
+        html: msgHTML,
+        icon: failCount > 0 ? 'warning' : 'success'
+      });
       
       setSubKegiatanMap({}); 
       setExpandedRow(null);
       fetchKegiatan(); 
 
     } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || "Gagal mengimpor data.");
+      Swal.fire('Error', err.response?.data?.message || "Gagal mengimpor data.", 'error');
     } finally {
       setUploading(false);
       e.target.value = null;
     }
   };
-
-  // --- HELPER RENDER BADGE ---
 
   const renderRecruitmentBadge = (status) => {
     switch (status) {
@@ -196,14 +206,11 @@ const ManageKegiatan = () => {
       : <span className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-yellow-500 rounded-full shadow-sm">Proses</span>;
   };
 
-  // --- RENDER UTAMA ---
-
   if (loading) return <div className="text-center py-10 text-gray-500">Memuat data...</div>;
   if (error) return <div className="text-center py-10 text-red-600">Error: {error}</div>;
 
   return (
     <div className="w-full">
-      {/* Input Hidden untuk Upload */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -212,7 +219,6 @@ const ManageKegiatan = () => {
         className="hidden" 
       />
 
-      {/* --- HEADER & TOMBOL --- */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <div className="text-gray-500 text-sm">
           Kelola daftar kegiatan survei/sensus dan sub-kegiatannya.
@@ -241,7 +247,6 @@ const ManageKegiatan = () => {
         </div>
       </div>
 
-      {/* --- LIST KEGIATAN (ACCORDION STYLE) --- */}
       <div className="space-y-4">
         {kegiatan.length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
@@ -256,18 +261,15 @@ const ManageKegiatan = () => {
                 key={item.id} 
                 className={`bg-white rounded-xl shadow-sm border transition-all duration-200 overflow-hidden ${isExpanded ? 'border-blue-300 ring-1 ring-blue-100' : 'border-gray-100 hover:border-blue-200'}`}
               >
-                {/* HEADER CARD (Klik untuk Expand) */}
                 <div 
                   onClick={() => handleRowClick(item.id)}
                   className={`px-6 py-4 cursor-pointer flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-colors ${isExpanded ? 'bg-blue-50/30' : 'bg-white hover:bg-gray-50'}`}
                 >
                   <div className="flex items-center gap-4 flex-1">
-                    {/* Icon Toggle Panah */}
                     <div className={`p-2 rounded-full transition-transform duration-200 ${isExpanded ? 'bg-blue-100 text-[#1A2A80]' : 'text-gray-400 bg-gray-100'}`}>
                        {isExpanded ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
                     </div>
                     
-                    {/* Info Utama Kegiatan */}
                     <div>
                       <h3 className={`text-base font-bold transition-colors ${isExpanded ? 'text-[#1A2A80]' : 'text-gray-800'}`}>
                         {item.nama_kegiatan}
@@ -278,7 +280,6 @@ const ManageKegiatan = () => {
                     </div>
                   </div>
 
-                  {/* Tombol Aksi (Edit/Hapus Induk) */}
                   <div className="flex items-center gap-2 pl-12 md:pl-0">
                     <Link
                       to={`/admin/manage-kegiatan/edit/${item.id}`}
@@ -298,7 +299,6 @@ const ManageKegiatan = () => {
                   </div>
                 </div>
 
-                {/* EXPANDED CONTENT (Tabel Sub Kegiatan) */}
                 {isExpanded && (
                   <div className="bg-gray-50/50 border-t border-gray-100 animate-fade-in-down">
                     {loadingSub && !subKegiatanMap[item.id] ? (

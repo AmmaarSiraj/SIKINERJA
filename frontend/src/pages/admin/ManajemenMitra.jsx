@@ -1,8 +1,8 @@
-// src/pages/admin/DaftarPengajuanMitra.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom'; 
 import * as XLSX from 'xlsx'; 
+import Swal from 'sweetalert2';
 // 1. IMPORT ICON
 import { 
   FaDownload, 
@@ -22,7 +22,6 @@ const ManajemenMitra = () => {
   const fileInputRef = useRef(null); 
   const navigate = useNavigate(); 
 
-  // Fetch data
   const fetchMitra = async () => {
     setLoading(true);
     try {
@@ -43,8 +42,6 @@ const ManajemenMitra = () => {
     fetchMitra();
   }, []);
 
-  // --- HANDLERS ---
-
   const handleExport = () => { 
     const dataToExport = mitraList.map(m => ({
       "Nama Lengkap": m.nama_lengkap, "NIK": m.nik, "Alamat": m.alamat,
@@ -55,6 +52,14 @@ const ManajemenMitra = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Data Mitra");
     XLSX.writeFile(workbook, "Data_Mitra_Sikinerja.xlsx");
+    
+    Swal.fire({
+      icon: 'success',
+      title: 'Export Berhasil',
+      text: 'File Excel sedang diunduh...',
+      timer: 2000,
+      showConfirmButton: false
+    });
   };
 
   const handleImportClick = () => fileInputRef.current.click();
@@ -62,29 +67,83 @@ const ManajemenMitra = () => {
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    
     const formData = new FormData();
     formData.append('file', file);
     setUploading(true);
+    
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/api/mitra/import`, formData, {
+      const response = await axios.post(`${API_URL}/api/mitra/import`, formData, {
         headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` }
       });
-      alert('Import Berhasil!'); fetchMitra(); 
-    } catch (err) { alert('Gagal import'); } 
-    finally { setUploading(false); e.target.value = null; }
+      
+      const { message, details } = response.data; // Sesuaikan dengan respon backend importMitra
+
+      // Parsing pesan dari backend untuk ditampilkan lebih rapi
+      // Asumsi message format: "Proses Selesai. Sukses: X, Gagal: Y, Skip: Z"
+      let iconType = 'success';
+      if (message.includes('Gagal: 0') === false) iconType = 'warning';
+
+      let htmlMsg = `<p>${message}</p>`;
+      if (details && details.length > 0) {
+         htmlMsg += `<div style="text-align:left; font-size:12px; max-height:150px; overflow-y:auto; background:#f9f9f9; padding:10px; margin-top:10px; border:1px solid #eee;">
+            <strong>Detail Error:</strong><br/>
+            ${details.map(err => `• ${err}`).join('<br/>')}
+         </div>`;
+      }
+
+      Swal.fire({
+        title: 'Import Selesai',
+        html: htmlMsg,
+        icon: iconType
+      });
+
+      fetchMitra(); 
+    } catch (err) { 
+      Swal.fire('Gagal', err.response?.data?.message || 'Terjadi kesalahan saat import.', 'error');
+    } finally { 
+      setUploading(false); 
+      e.target.value = null; 
+    }
   };
 
   const handleDelete = async (id, e) => {
     e.stopPropagation(); 
-    if (!window.confirm("Yakin hapus mitra ini?")) return;
-    try {
-        const token = localStorage.getItem('token');
-        await axios.delete(`${API_URL}/api/mitra/${id}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        setMitraList(prev => prev.filter(m => m.id !== id));
-    } catch (err) { alert("Gagal menghapus mitra."); }
+    
+    const result = await Swal.fire({
+      title: 'Yakin hapus mitra ini?',
+      text: "Data mitra beserta riwayatnya akan dihapus permanen!",
+      icon: 'warning',
+      showCancelButton: true,
+      reverseButtons: true, // Tombol hapus di kanan
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Ya, Hapus!',
+      cancelButtonText: 'Batal'
+    });
+
+    if (result.isConfirmed) {
+      try {
+          const token = localStorage.getItem('token');
+          await axios.delete(`${API_URL}/api/mitra/${id}`, {
+              headers: { Authorization: `Bearer ${token}` }
+          });
+          setMitraList(prev => prev.filter(m => m.id !== id));
+          
+          Swal.fire(
+            'Terhapus!',
+            'Data mitra berhasil dihapus.',
+            'success'
+          );
+      } catch (err) { 
+          Swal.fire(
+            'Gagal!',
+            'Gagal menghapus mitra. Mungkin ada data terkait.',
+            'error'
+          );
+      }
+    }
   };
 
   const handleRowClick = (id) => {
@@ -95,7 +154,6 @@ const ManajemenMitra = () => {
 
   return (
     <div className="w-full">
-      {/* Header Actions */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <div className="text-gray-500 text-sm">
             Database seluruh mitra statistik yang terdaftar.
@@ -121,7 +179,6 @@ const ManajemenMitra = () => {
       
       {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6 border border-red-100">{error}</div>}
 
-      {/* Tabel */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">

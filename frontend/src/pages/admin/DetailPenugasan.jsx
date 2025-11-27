@@ -1,7 +1,7 @@
-// src/pages/admin/DetailPenugasan.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Swal from 'sweetalert2';
 import PopupTambahAnggota from '../../components/admin/PopupTambahAnggota';
 // 1. IMPORT ICON
 import { 
@@ -58,37 +58,80 @@ const DetailPenugasan = () => {
     fetchDetailData();
   }, [id]);
 
-  const handleRemoveAnggota = async (id_kelompok) => {
-    if (!window.confirm('Keluarkan mitra ini dari tim?')) return;
-    try {
-      const token = getToken();
-      await axios.delete(`${API_URL}/api/kelompok-penugasan/${id_kelompok}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchDetailData(); 
-    } catch (err) {
-      alert('Gagal menghapus anggota.');
+  // --- HANDLER HAPUS ANGGOTA (DENGAN SWEETALERT) ---
+  const handleRemoveAnggota = async (id_kelompok, nama_mitra) => {
+    const result = await Swal.fire({
+      title: 'Keluarkan Anggota?',
+      text: `Apakah Anda yakin ingin mengeluarkan "${nama_mitra}" dari tim ini?`,
+      icon: 'warning',
+      showCancelButton: true,
+      reverseButtons: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Ya, Keluarkan!',
+      cancelButtonText: 'Batal'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const token = getToken();
+        await axios.delete(`${API_URL}/api/kelompok-penugasan/${id_kelompok}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        await Swal.fire(
+          'Dikeluarkan!',
+          'Anggota berhasil dikeluarkan dari tim.',
+          'success'
+        );
+        fetchDetailData(); 
+      } catch (err) {
+        Swal.fire(
+          'Gagal!',
+          'Terjadi kesalahan saat menghapus anggota.',
+          'error'
+        );
+      }
     }
   };
 
+  // --- HANDLER BUBARKAN TIM (DENGAN SWEETALERT) ---
   const handleDeletePenugasan = async () => {
-    if (!window.confirm('Yakin bubarkan tim ini? Semua anggota akan dikeluarkan.')) return;
-    try {
-      const token = getToken();
-      await axios.delete(`${API_URL}/api/penugasan/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      navigate('/admin/penugasan');
-    } catch (err) {
-      alert('Gagal menghapus penugasan.');
+    const result = await Swal.fire({
+      title: 'Bubarkan Tim?',
+      text: "Tindakan ini akan menghapus penugasan ini dan mengeluarkan seluruh anggota yang terdaftar di dalamnya!",
+      icon: 'warning',
+      showCancelButton: true,
+      reverseButtons: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Ya, Bubarkan!',
+      cancelButtonText: 'Batal'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const token = getToken();
+        await axios.delete(`${API_URL}/api/penugasan/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        await Swal.fire(
+          'Dibubarkan!',
+          'Tim penugasan berhasil dibubarkan.',
+          'success'
+        );
+        navigate('/admin/penugasan');
+      } catch (err) {
+        Swal.fire(
+          'Gagal!',
+          'Terjadi kesalahan saat membubarkan tim.',
+          'error'
+        );
+      }
     }
   };
   
-  const progres = useMemo(() => {
-    if (!penugasan || anggota.length === 0) return 0;
-    return (anggota.length / penugasan.jumlah_max_mitra) * 100;
-  }, [penugasan, anggota]);
-
   if (isLoading) return <div className="text-center py-10 text-gray-500">Memuat detail...</div>;
   if (error) return <div className="text-center py-10 text-red-600">{error}</div>;
   if (!penugasan) return <div className="text-center py-10 text-gray-500">Data tidak ditemukan.</div>;
@@ -139,24 +182,18 @@ const DetailPenugasan = () => {
               </div>
             </div>
 
-            {/* Info Progress */}
+            {/* Info Anggota */}
             <div>
               <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-2 flex items-center gap-2">
-                <FaChartPie /> Kapasitas & Status
+                <FaChartPie /> Total Anggota
               </p>
               <div className="flex items-center justify-between mb-2">
                 <span className="font-bold text-gray-900 text-lg">
-                  {anggota.length} <span className="text-gray-400 text-sm font-normal">/ {penugasan.jumlah_max_mitra} Anggota</span>
+                  {anggota.length} <span className="text-gray-400 text-sm font-normal"> Orang</span>
                 </span>
-                <span className={`text-xs font-bold px-2 py-1 rounded ${progres >= 100 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                  {progres.toFixed(0)}% Terisi
+                <span className="text-xs font-bold px-2 py-1 rounded bg-green-100 text-green-700">
+                  Aktif
                 </span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                <div 
-                  className={`h-full transition-all duration-500 ${progres >= 100 ? 'bg-red-500' : 'bg-green-500'}`} 
-                  style={{ width: `${Math.min(progres, 100)}%` }}
-                ></div>
               </div>
             </div>
 
@@ -169,8 +206,7 @@ const DetailPenugasan = () => {
             <h3 className="font-bold text-gray-800">Daftar Anggota Lapangan</h3>
             <button 
               onClick={() => setIsPopupOpen(true)}
-              disabled={anggota.length >= penugasan.jumlah_max_mitra}
-              className="flex items-center gap-2 bg-[#1A2A80] hover:bg-blue-900 disabled:bg-gray-300 text-white py-2 px-4 rounded-lg text-sm font-bold transition shadow-sm"
+              className="flex items-center gap-2 bg-[#1A2A80] hover:bg-blue-900 text-white py-2 px-4 rounded-lg text-sm font-bold transition shadow-sm"
             >
               <FaPlus size={12} /> Tambah Anggota
             </button>
@@ -222,7 +258,7 @@ const DetailPenugasan = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                         <button 
-                          onClick={() => handleRemoveAnggota(item.id_kelompok)}
+                          onClick={() => handleRemoveAnggota(item.id_kelompok, item.nama_lengkap)}
                           className="text-red-500 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 px-3 py-1 rounded-full transition text-xs flex items-center gap-1 ml-auto"
                         >
                           <FaTrash size={10} /> Keluarkan

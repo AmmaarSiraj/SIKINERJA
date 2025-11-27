@@ -240,9 +240,7 @@ const Penugasan = () => {
                             <span className="flex items-center gap-1">
                               👤 Pengawas: <span className="font-medium text-gray-700">{task.nama_pengawas}</span>
                             </span>
-                            <span className="flex items-center gap-1">
-                              📊 Kuota: <span className="font-medium text-gray-700">{task.jumlah_max_mitra}</span>
-                            </span>
+                            {/* KUOTA DIHAPUS DARI SINI */}
                           </div>
                         </div>
 

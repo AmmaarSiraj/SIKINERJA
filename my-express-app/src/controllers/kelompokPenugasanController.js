@@ -1,3 +1,4 @@
+// src/controllers/kelompokPenugasanController.js
 const { pool } = require('../config/db');
 
 exports.addMitraToPenugasan = async (req, res) => {
@@ -10,30 +11,11 @@ exports.addMitraToPenugasan = async (req, res) => {
   let connection;
   try {
     connection = await pool.getConnection();
+    // Tidak perlu transaction kompleks hanya untuk 1 insert, tapi tetap kita pakai untuk konsistensi jika nanti ada tambahan logic
     await connection.beginTransaction();
 
-    const [penugasanRows] = await connection.query(
-      'SELECT jumlah_max_mitra FROM penugasan WHERE id = ?',
-      [id_penugasan]
-    );
-
-    if (penugasanRows.length === 0) {
-      await connection.rollback();
-      return res.status(404).json({ error: 'Penugasan tidak ditemukan.' });
-    }
-    const maxMitra = penugasanRows[0].jumlah_max_mitra;
-
-    const [countRows] = await connection.query(
-      'SELECT COUNT(*) AS jumlah_sekarang FROM kelompok_penugasan WHERE id_penugasan = ?',
-      [id_penugasan]
-    );
-    const jumlahSekarang = countRows[0].jumlah_sekarang;
-
-    if (jumlahSekarang >= maxMitra) {
-      await connection.rollback();
-      return res.status(409).json({ error: 'Gagal menambahkan. Jumlah maksimal mitra untuk penugasan ini telah tercapai.' });
-    }
-
+    // Hapus pengecekan kuota (jumlah_max_mitra sudah didrop)
+    
     const sql = 'INSERT INTO kelompok_penugasan (id_penugasan, id_mitra) VALUES (?, ?)';
     const [result] = await connection.query(sql, [id_penugasan, id_mitra]);
     

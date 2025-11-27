@@ -1,19 +1,17 @@
 // src/controllers/kegiatanController.js
 const { pool } = require('../config/db');
 
-// 1. Create Kegiatan
+// 1. Create Kegiatan (Disederhanakan)
 const createKegiatan = async (req, res) => {
   const { 
     nama_kegiatan, 
-    deskripsi, 
-    tahun_anggaran, 
-    tanggal_mulai, 
-    tanggal_selesai, 
+    deskripsi,
     subkegiatans 
   } = req.body;
   
-  if (!nama_kegiatan || !tahun_anggaran || !tanggal_mulai || !tanggal_selesai) {
-    return res.status(400).json({ message: 'Data utama wajib diisi lengkap' });
+  // VALIDASI BARU: Hanya cek nama_kegiatan
+  if (!nama_kegiatan) {
+    return res.status(400).json({ message: 'Nama Kegiatan wajib diisi' });
   }
 
   let connection;
@@ -21,17 +19,17 @@ const createKegiatan = async (req, res) => {
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
-    // Insert Kegiatan
+    // Insert Kegiatan (Hanya Nama & Deskripsi, tanpa tahun/tanggal)
     const sqlKegiatan = `
-      INSERT INTO kegiatan (nama_kegiatan, deskripsi, tahun_anggaran, tanggal_mulai, tanggal_selesai) 
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO kegiatan (nama_kegiatan, deskripsi) 
+      VALUES (?, ?)
     `;
     const [kegiatanResult] = await connection.query(sqlKegiatan, [
-      nama_kegiatan, deskripsi, tahun_anggaran, tanggal_mulai, tanggal_selesai
+      nama_kegiatan, deskripsi || null
     ]);
     const newKegiatanId = kegiatanResult.insertId;
 
-    // Insert Sub Kegiatan (Jika ada)
+    // Insert Sub Kegiatan (Jika ada dikirim langsung, opsional)
     if (subkegiatans && subkegiatans.length > 0) {
       const sqlSub = `INSERT INTO subkegiatan (id_kegiatan, nama_sub_kegiatan, deskripsi) VALUES ?`;
       const subValues = subkegiatans.map(sub => [
@@ -58,10 +56,9 @@ const createKegiatan = async (req, res) => {
   }
 };
 
-// 2. Get All Kegiatan (Diperbarui agar tidak crash dengan struktur DB baru)
+// 2. Get All Kegiatan
 const getAllKegiatan = async (req, res) => {
   try {
-    // Kita ambil data kegiatan standar saja dulu agar aman
     const sql = `SELECT * FROM kegiatan ORDER BY created_at DESC`;
     const [rows] = await pool.query(sql);
     res.json(rows);
@@ -89,17 +86,17 @@ const getKegiatanById = async (req, res) => {
 };
 
 // 4. Update Kegiatan
+// 4. Update Kegiatan (Disederhanakan)
 const updateKegiatan = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nama_kegiatan, deskripsi, tahun_anggaran, tanggal_mulai, tanggal_selesai } = req.body;
+    const { nama_kegiatan, deskripsi } = req.body;
 
     const updateData = {};
     if (nama_kegiatan) updateData.nama_kegiatan = nama_kegiatan;
     if (deskripsi !== undefined) updateData.deskripsi = deskripsi;
-    if (tahun_anggaran) updateData.tahun_anggaran = tahun_anggaran;
-    if (tanggal_mulai) updateData.tanggal_mulai = tanggal_mulai;
-    if (tanggal_selesai) updateData.tanggal_selesai = tanggal_selesai;
+
+    // Hapus logika update tahun/tanggal karena kolom sudah tidak ada
 
     if (Object.keys(updateData).length === 0) {
         return res.status(400).json({ message: 'Tidak ada data update' });
@@ -135,7 +132,6 @@ const deleteKegiatan = async (req, res) => {
   }
 };
 
-// PENTING: Export harus dalam objek seperti ini
 module.exports = {
   createKegiatan,
   getAllKegiatan,

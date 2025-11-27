@@ -2,8 +2,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 // Import Halaman
-import Login from './auth/Login';
-import Register from './auth/Register';
+import AuthPage from './auth/AuthPage';
 import Home from './pages/Home';
 import AdminDashboard from './pages/admin/Dashboard'; 
 import ManageUsers from './pages/admin/ManageUsers';
@@ -39,13 +38,14 @@ function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* === Rute Publik (Login/Register) === */}
-        <Route path="/" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-
+        <Route path="/" element={<AuthPage />} />
+        
+        {/* Redirect /register ke / agar user diarahkan ke AuthPage */}
+        <Route path="/register" element={<Navigate to="/" replace />} /> 
+        <Route path="/home" element={<Home />} />
+        
         {/* === Rute User Biasa (menggunakan Layout utama) === */}
         <Route element={<Layout />}>
-          <Route path="/home" element={<Home />} />
           <Route path="/lengkapi-profil" element={<LengkapiProfile />} />
           <Route path="/kegiatan/:id" element={<DetailKegiatanUser />} />
         </Route>

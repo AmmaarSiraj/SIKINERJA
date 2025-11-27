@@ -166,7 +166,6 @@ const TambahPenugasan = () => {
          const resPenugasan = await axios.post(`${API_URL}/api/penugasan`, {
              id_subkegiatan: row.penugasan.id,
              id_pengawas: currentUserId, 
-             jumlah_max_mitra: 50
          }, { headers: { Authorization: `Bearer ${token}` } });
          
          const newPenugasanId = resPenugasan.data.id_penugasan || resPenugasan.data.id;

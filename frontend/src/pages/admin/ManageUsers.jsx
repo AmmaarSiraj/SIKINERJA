@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2'; // 1. IMPORT SWEETALERT2
 // 1. IMPORT ICON
 import { FaDownload, FaFileUpload, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 
@@ -38,16 +39,43 @@ const ManageUsers = () => {
         }
     };
 
+    // 2. FUNGSI DELETE DENGAN POPUP SWEETALERT
     const handleDelete = async (id) => {
-        if (!window.confirm('Apakah Anda yakin ingin menghapus pengguna ini?')) return;
-        try {
-            const token = getToken();
-            await axios.delete(`${API_URL}/users/${id}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            fetchUsers();
-        } catch (err) {
-            alert('Gagal menghapus pengguna.');
+        const result = await Swal.fire({
+            title: 'Apakah Anda yakin?',
+            text: "Data pengguna ini akan dihapus permanen!",
+            icon: 'warning',
+            showCancelButton: true,
+            
+            // --- PENGATURAN POSISI & WARNA ---
+            reverseButtons: true, // INI YANG MEMBUAT TOMBOL HAPUS PINDAH KE KANAN
+            confirmButtonColor: '#d33', // Merah untuk Hapus
+            cancelButtonColor: '#3085d6', // Biru untuk Batal
+            confirmButtonText: 'Ya, Hapus!',
+            cancelButtonText: 'Batal'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const token = getToken();
+                await axios.delete(`${API_URL}/users/${id}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                
+                await Swal.fire(
+                    'Terhapus!',
+                    'Data pengguna berhasil dihapus.',
+                    'success'
+                );
+                
+                fetchUsers();
+            } catch (err) {
+                Swal.fire(
+                    'Gagal!',
+                    'Terjadi kesalahan saat menghapus pengguna.',
+                    'error'
+                );
+            }
         }
     };
 
@@ -90,16 +118,24 @@ const ManageUsers = () => {
             });
 
             const { successCount, failCount, errors } = response.data;
-            let msg = `Import User Selesai!\n✅ Sukses: ${successCount}\n❌ Gagal: ${failCount}`;
+            
+            // Gunakan Swal untuk notifikasi import juga agar konsisten
+            let msgHTML = `<b>Sukses:</b> ${successCount}<br/><b>Gagal:</b> ${failCount}`;
             if (errors && errors.length > 0) {
-                msg += `\n\nDetail Error:\n` + errors.slice(0, 3).join('\n') + (errors.length > 3 ? '\n...' : '');
+                msgHTML += `<br/><br/><div style="text-align:left; max-height:100px; overflow-y:auto; font-size:12px; background:#f9f9f9; padding:5px;">${errors.slice(0, 3).join('<br/>')}${errors.length > 3 ? '<br/>...' : ''}</div>`;
             }
-            alert(msg);
+
+            Swal.fire({
+                title: 'Import Selesai',
+                html: msgHTML,
+                icon: failCount > 0 ? 'warning' : 'success'
+            });
+
             fetchUsers();
 
         } catch (err) {
             console.error(err);
-            alert(err.response?.data?.message || "Gagal import user.");
+            Swal.fire('Error', err.response?.data?.message || "Gagal import user.", 'error');
         } finally {
             setUploading(false);
             e.target.value = null;

@@ -129,14 +129,6 @@ const PartDaftarKegiatan = () => {
       );
     }
 
-    if (item.jumlah_terisi >= item.jumlah_max_mitra) {
-      return (
-        <span className="px-3 py-1 text-xs font-bold text-red-700 bg-red-100 rounded-full border border-red-300">
-          Penuh
-        </span>
-      );
-    }
-
     return (
       <button
         onClick={(e) => handleAmbilTugas(e, item.id_penugasan, item.nama_kegiatan)}
@@ -187,11 +179,6 @@ const PartDaftarKegiatan = () => {
                         📅 {formatDate(item.tanggal_mulai)} - {formatDate(item.tanggal_selesai)}
                     </span>
                     
-                    {item.id_penugasan && (
-                      <span className={`font-semibold flex items-center gap-1 ${item.jumlah_terisi >= item.jumlah_max_mitra ? 'text-red-600' : 'text-blue-600'}`}>
-                        👤 Kuota: {item.jumlah_terisi} / {item.jumlah_max_mitra}
-                      </span>
-                    )}
                   </div>
                 </div>
 

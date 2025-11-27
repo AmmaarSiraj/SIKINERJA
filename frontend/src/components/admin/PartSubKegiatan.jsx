@@ -1,207 +1,140 @@
 // src/components/admin/PartSubKegiatan.jsx
 import React from 'react';
-import { 
-  FaTrash, 
-  FaPlus, 
-  FaCalendarAlt, 
-  FaBullhorn, 
-  FaClipboardList, 
-  FaAlignLeft 
-} from 'react-icons/fa';
+import { FaTrash, FaCalendarAlt, FaBullhorn, FaClock } from 'react-icons/fa';
+import PartAddHonor from './PartAddHonor';
 
 const PartSubKegiatan = ({ subKegiatans, setSubKegiatans }) => {
-  
-  const addSubKegiatan = () => {
-    setSubKegiatans([
-      ...subKegiatans,
-      { 
-        id: Date.now(), 
-        nama_sub_kegiatan: '', 
-        deskripsi: '',
-        periode: new Date().getFullYear().toString(),
-        tanggal_mulai: '',
-        tanggal_selesai: '',
-        open_req: '',  
-        close_req: ''  
-      } 
-    ]);
-  };
 
   const removeSubKegiatan = (id) => {
     setSubKegiatans(subKegiatans.filter(sub => sub.id !== id));
   };
 
-  const handleChange = (id, event) => {
-    const { name, value } = event.target;
-    setSubKegiatans(
-      subKegiatans.map(sub => 
-        sub.id === id ? { ...sub, [name]: value } : sub
-      )
-    );
+  const handleChange = (id, field, value) => {
+    setSubKegiatans(subKegiatans.map(sub => 
+      sub.id === id ? { ...sub, [field]: value } : sub
+    ));
+  };
+
+  const handleHonorChange = (subId, newHonorList) => {
+    setSubKegiatans(subKegiatans.map(sub => 
+      sub.id === subId ? { ...sub, honorList: newHonorList } : sub
+    ));
   };
 
   return (
-    <div className="bg-white shadow-sm rounded-xl border border-gray-100 overflow-hidden">
-      
-      {/* Header Bagian */}
-      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-        <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-          <span className="text-[#1A2A80]"><FaClipboardList /></span>
-          Rincian Sub Kegiatan
-        </h2>
-        <span className="text-xs font-bold text-[#1A2A80] bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
-          Total: {subKegiatans.length}
-        </span>
-      </div>
-      
-      <div className="p-6 space-y-6">
-        {subKegiatans.length === 0 && (
-            <div className="text-center py-8 text-gray-400 italic border-2 border-dashed border-gray-100 rounded-xl">
-                Belum ada sub kegiatan yang ditambahkan.
-            </div>
-        )}
+    <div className="space-y-8">
+      {subKegiatans.map((sub, index) => (
+        <div key={sub.id} className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all overflow-hidden relative">
+          
+          {/* Header Card */}
+          <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+             <div className="flex items-center gap-3">
+               <span className="bg-[#1A2A80] text-white w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold shadow-sm">
+                  {index + 1}
+               </span>
+               <h3 className="font-bold text-gray-800 text-lg">Rincian Sub Kegiatan</h3>
+             </div>
+             <button
+               type="button"
+               onClick={() => removeSubKegiatan(sub.id)}
+               className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-full transition"
+               title="Hapus Sub Kegiatan Ini"
+             >
+               <FaTrash />
+             </button>
+          </div>
 
-        {subKegiatans.map((sub, index) => (
-          <div key={sub.id} className="p-6 border border-gray-200 rounded-xl relative bg-white hover:border-blue-300 transition-colors shadow-sm group">
-            
-            {/* Header Item */}
-            <div className="flex justify-between items-center mb-6 pb-3 border-b border-gray-100">
-               <h3 className="font-bold text-md text-[#1A2A80] flex items-center gap-2">
-                 <span className="bg-blue-100 text-[#1A2A80] w-6 h-6 flex items-center justify-center rounded-full text-xs">
-                    {index + 1}
-                 </span>
-                 Data Sub Kegiatan
-               </h3>
-               <button
-                 type="button"
-                 onClick={() => removeSubKegiatan(sub.id)}
-                 className="text-gray-400 hover:text-red-600 transition p-2 rounded-full hover:bg-red-50"
-                 title="Hapus Sub Kegiatan"
-               >
-                 <FaTrash size={14} />
-               </button>
-            </div>
-
-            {/* --- FORM INPUT (Semua Vertikal / Stack) --- */}
-            <div className="flex flex-col gap-5">
+          <div className="p-6">
+            {/* Form Sub Kegiatan */}
+            <div className="grid grid-cols-1 gap-5 mb-6">
                 
-                {/* Nama Kegiatan */}
-                <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Nama Kegiatan <span className="text-red-500">*</span></label>
-                    <input
-                        type="text"
-                        name="nama_sub_kegiatan"
-                        placeholder="Contoh: Pencacahan Lapangan"
-                        value={sub.nama_sub_kegiatan}
-                        onChange={(e) => handleChange(sub.id, e)}
-                        className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] text-sm transition outline-none"
-                        required
-                    />
-                </div>
-
-                {/* Tahun Periode */}
-                <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Tahun Periode</label>
-                    <input
-                        type="number"
-                        name="periode"
-                        placeholder="YYYY"
-                        min="2000"
-                        max="2099"
-                        value={sub.periode}
-                        onChange={(e) => handleChange(sub.id, e)}
-                        className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] text-sm transition outline-none"
-                    />
+                {/* Baris 1: Nama & Periode */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Nama Sub Kegiatan <span className="text-red-500">*</span></label>
+                        <input
+                            type="text"
+                            value={sub.nama_sub_kegiatan}
+                            onChange={(e) => handleChange(sub.id, 'nama_sub_kegiatan', e.target.value)}
+                            placeholder="Contoh: Pencacahan Lapangan"
+                            className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-transparent text-sm transition outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 flex items-center gap-1">
+                           <FaClock /> Periode (Bulan/Tahun)
+                        </label>
+                        <input
+                            type="text"
+                            value={sub.periode}
+                            onChange={(e) => handleChange(sub.id, 'periode', e.target.value)}
+                            placeholder="Contoh: Januari 2025"
+                            className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-transparent text-sm transition outline-none"
+                        />
+                    </div>
                 </div>
 
                 {/* Deskripsi */}
                 <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5 flex items-center gap-1">
-                        <FaAlignLeft className="text-gray-400"/> Deskripsi
-                    </label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Deskripsi</label>
                     <textarea
-                        name="deskripsi"
                         rows="2"
-                        placeholder="Jelaskan detail kegiatan ini..."
                         value={sub.deskripsi}
-                        onChange={(e) => handleChange(sub.id, e)}
-                        className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] text-sm transition outline-none resize-none"
+                        onChange={(e) => handleChange(sub.id, 'deskripsi', e.target.value)}
+                        className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-transparent text-sm transition outline-none resize-none"
+                        placeholder="Jelaskan detail pekerjaan..."
                     />
                 </div>
-
-                {/* Jadwal Pelaksanaan (Vertikal) */}
-                <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 mt-2">
-                    <p className="text-xs font-bold text-gray-700 mb-4 uppercase flex items-center gap-2 border-b border-gray-200 pb-2">
-                        <FaCalendarAlt className="text-[#1A2A80]" /> Jadwal Pelaksanaan
-                    </p>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="text-xs text-gray-500 font-semibold mb-1 block">Tanggal Mulai</label>
-                            <input
-                                type="date"
-                                name="tanggal_mulai"
-                                value={sub.tanggal_mulai}
-                                onChange={(e) => handleChange(sub.id, e)}
-                                className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1A2A80] focus:border-[#1A2A80] text-sm bg-white"
-                            />
+                
+                {/* Grid Tanggal */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {/* Jadwal Pelaksanaan */}
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <p className="text-xs font-bold text-gray-600 flex items-center gap-2 mb-3 uppercase tracking-wide">
+                            <FaCalendarAlt className="text-[#1A2A80]" /> Jadwal Pelaksanaan
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] text-gray-400 font-bold block mb-1">MULAI</label>
+                                <input type="date" className="w-full text-xs border border-gray-300 rounded p-2 focus:border-[#1A2A80] outline-none" value={sub.tanggal_mulai} onChange={(e) => handleChange(sub.id, 'tanggal_mulai', e.target.value)} />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-400 font-bold block mb-1">SELESAI</label>
+                                <input type="date" className="w-full text-xs border border-gray-300 rounded p-2 focus:border-[#1A2A80] outline-none" value={sub.tanggal_selesai} onChange={(e) => handleChange(sub.id, 'tanggal_selesai', e.target.value)} />
+                            </div>
                         </div>
-                        <div>
-                            <label className="text-xs text-gray-500 font-semibold mb-1 block">Tanggal Selesai</label>
-                            <input
-                                type="date"
-                                name="tanggal_selesai"
-                                value={sub.tanggal_selesai}
-                                onChange={(e) => handleChange(sub.id, e)}
-                                className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1A2A80] focus:border-[#1A2A80] text-sm bg-white"
-                            />
+                    </div>
+
+                    {/* Jadwal Rekrutmen */}
+                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                        <p className="text-xs font-bold text-blue-700 flex items-center gap-2 mb-3 uppercase tracking-wide">
+                            <FaBullhorn /> Open Recruitment
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] text-blue-400 font-bold block mb-1">BUKA</label>
+                                <input type="date" className="w-full text-xs border border-blue-200 rounded p-2 text-blue-800 focus:ring-1 focus:ring-blue-400 outline-none" value={sub.open_req} onChange={(e) => handleChange(sub.id, 'open_req', e.target.value)} />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-blue-400 font-bold block mb-1">TUTUP</label>
+                                <input type="date" className="w-full text-xs border border-blue-200 rounded p-2 text-blue-800 focus:ring-1 focus:ring-blue-400 outline-none" value={sub.close_req} onChange={(e) => handleChange(sub.id, 'close_req', e.target.value)} />
+                            </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                {/* Jadwal Rekrutmen (Vertikal) */}
-                <div className="bg-blue-50 p-5 rounded-xl border border-blue-100">
-                    <p className="text-xs font-bold text-[#1A2A80] mb-4 uppercase flex items-center gap-2 border-b border-blue-200 pb-2">
-                        <FaBullhorn /> Open Recruitment
-                    </p>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="text-xs text-blue-700 font-semibold mb-1 block">Buka Pendaftaran</label>
-                            <input
-                                type="date"
-                                name="open_req"
-                                value={sub.open_req}
-                                onChange={(e) => handleChange(sub.id, e)}
-                                className="block w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-[#1A2A80] focus:border-[#1A2A80] text-sm bg-white"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs text-blue-700 font-semibold mb-1 block">Tutup Pendaftaran</label>
-                            <input
-                                type="date"
-                                name="close_req"
-                                value={sub.close_req}
-                                onChange={(e) => handleChange(sub.id, e)}
-                                className="block w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-[#1A2A80] focus:border-[#1A2A80] text-sm bg-white"
-                            />
-                        </div>
-                    </div>
-                </div>
-
+            {/* INTEGRASI: PartAddHonor */}
+            <div className="border-t border-dashed border-gray-300 pt-5 mt-2">
+               <PartAddHonor 
+                  honorList={sub.honorList || []} 
+                  onChange={(newHonorList) => handleHonorChange(sub.id, newHonorList)}
+               />
             </div>
           </div>
-        ))}
 
-        <button
-            type="button"
-            onClick={addSubKegiatan}
-            className="w-full py-4 px-6 border-2 border-dashed border-[#1A2A80]/30 text-[#1A2A80] font-bold rounded-xl hover:bg-blue-50 hover:border-[#1A2A80] transition flex items-center justify-center gap-2 group"
-        >
-            <span className="bg-[#1A2A80] text-white rounded-full p-1 group-hover:scale-110 transition-transform">
-                <FaPlus size={10} />
-            </span>
-            Tambah Sub Kegiatan Lain
-        </button>
-      </div>
+        </div>
+      ))}
     </div>
   );
 };

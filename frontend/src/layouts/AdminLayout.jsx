@@ -1,5 +1,5 @@
 // src/layouts/AdminLayout.jsx
-import { useState } from 'react'; // Import useState
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   FaHome, 
@@ -8,13 +8,13 @@ import {
   FaHandshake, 
   FaFileAlt, 
   FaSignOutAlt, 
-  FaSearch,
+  FaUserCircle, 
   FaUserCheck,
-  FaBars // Import icon hamburger menu
+  FaBars 
 } from 'react-icons/fa';
 
-// 1. IMPORT GAMBAR (Sesuaikan nama file)
-import logoSikinerja from '../assets/bpslogo.png'; 
+import logoSikinerja from '../assets/logo.png'; 
+import PartDetailProfileAdmin from '../components/admin/PartDetailProfileAdmin';
 
 // Daftar Menu
 const menuItems = [
@@ -26,16 +26,55 @@ const menuItems = [
   { path: "/admin/laporan", label: "Template Laporan", icon: <FaFileAlt /> },
 ];
 
-// Komponen Header (Menerima props toggleSidebar)
-const AdminHeader = ({ title, toggleSidebar }) => {
+// --- HEADER ---
+const AdminHeader = ({ title, toggleSidebar, isProfileExpanded, setIsProfileExpanded }) => {
   const currentDate = new Date().toLocaleDateString('id-ID', { 
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
   });
 
+  const [userData, setUserData] = useState({ username: 'Admin', role: 'admin', email: '', id: '' });
+  
+  // State untuk menyimpan lebar konten widget saat tertutup
+  const [widgetWidth, setWidgetWidth] = useState(300);
+  const widgetContentRef = useRef(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        setUserData(user);
+      } catch (e) {
+        console.error("Gagal parse user", e);
+      }
+    }
+  }, []);
+
+  // Effect untuk mengukur lebar konten secara otomatis
+  useEffect(() => {
+    if (widgetContentRef.current) {
+      // Padding container: pl-10 (40px) + pr-8 (32px) = 72px + buffer 15px
+      const width = widgetContentRef.current.getBoundingClientRect().width + 87; 
+      setWidgetWidth(width);
+    }
+  }, [userData.username]);
+
+  const handleProfileClick = () => {
+    if (!isProfileExpanded) {
+      setIsProfileExpanded(true);
+    }
+  };
+
+  const handleCloseProfile = () => {
+    setIsProfileExpanded(false);
+  };
+
   return (
-    <header className="flex justify-between items-center py-5 px-4 md:px-8 bg-transparent">
-      <div className="flex items-center gap-4">
-        {/* Tombol Hamburger (Hanya muncul di Mobile) */}
+    // PERUBAHAN DI SINI: Mengubah 'pt-5' menjadi 'pt-2' agar lebih rapat ke atas
+    <header className="flex justify-between items-start pt-1 px-4 md:px-8 bg-transparent relative h-20 z-30">
+      
+      {/* JUDUL HALAMAN */}
+      <div className={`flex items-center gap-4 mt-2 transition-all duration-500 ${isProfileExpanded ? 'opacity-0 -translate-x-4 pointer-events-none' : 'opacity-100 translate-x-0'}`}>
         <button 
           onClick={toggleSidebar}
           className="md:hidden text-gray-600 hover:text-[#1A2A80] text-2xl focus:outline-none"
@@ -49,28 +88,62 @@ const AdminHeader = ({ title, toggleSidebar }) => {
         </div>
       </div>
       
-      <div className="hidden md:flex items-center bg-gray-50 rounded-full px-5 py-2.5 shadow-sm border border-gray-200 w-72 transition-all focus-within:ring-2 focus-within:ring-[#1A2A80] focus-within:bg-white">
-        <span className="text-gray-400 mr-3"><FaSearch /></span>
-        <input 
-          type="text" 
-          placeholder="Cari data..." 
-          className="bg-transparent outline-none text-sm text-gray-600 w-full placeholder-gray-400"
-        />
+      {/* PROFILE CONTAINER (ANIMASI) */}
+      <div 
+        onClick={handleProfileClick}
+        style={{
+            width: isProfileExpanded ? '100vw' : `${widgetWidth}px`,
+            height: isProfileExpanded ? '100vh' : '80px', // Sedikit diperkecil tingginya agar proporsional
+            borderRadius: isProfileExpanded ? '0px' : '0px 0px 0px 40px'
+        }}
+        className={`
+            bg-gray-100 shadow-sm overflow-hidden
+            fixed top-0 right-0 z-[100]
+            transition-all duration-700 ease-[cubic-bezier(0.85,0,0.15,1)]
+            flex flex-col
+            ${isProfileExpanded ? 'cursor-default' : 'cursor-pointer hover:bg-gray-200'}
+        `}
+      >
+         {/* KONTEN */}
+         <div className="w-full h-full relative">
+           {isProfileExpanded ? (
+              <PartDetailProfileAdmin user={userData} onClose={handleCloseProfile} />
+           ) : (
+              // TAMPILAN WIDGET
+              <div className="absolute top-0 right-0 w-full h-full flex items-center justify-end pr-8 pt-2">
+                  
+                  {/* Wrapper konten */}
+                  <div ref={widgetContentRef} className="flex items-center gap-4">
+                      <div className="text-right whitespace-nowrap">
+                          <p className="text-sm font-bold text-gray-800 leading-tight block select-none">
+                              {userData.username}
+                          </p>
+                          <span className="text-[10px] font-bold text-[#1A2A80] bg-blue-100 px-2 py-0.5 rounded-full select-none inline-block mt-1">
+                              {userData.role === 'admin' ? 'Administrator' : 'Mitra'}
+                          </span>
+                      </div>
+                      <div className="bg-white p-1 rounded-full shadow-sm flex-shrink-0">
+                          <FaUserCircle className="text-4xl text-gray-400" />
+                      </div>
+                  </div>
+
+              </div>
+           )}
+         </div>
       </div>
+
     </header>
   );
 };
 
-// Komponen Sidebar
-const Sidebar = ({ handleLogout, closeSidebar }) => {
+// --- SIDEBAR (Tetap Sama) ---
+const Sidebar = ({ handleLogout, onMenuClick }) => {
   const location = useLocation();
   const isActive = (path) => location.pathname === path;
 
   return (
-    // UBAH WARNA DASAR SIDEBAR JADI #1A2A80
     <aside className="w-72 bg-[#1A2A80] text-white flex flex-col overflow-hidden relative z-20 h-full shadow-2xl md:shadow-none">
       
-      {/* === BAGIAN LOGO & NAMA APLIKASI === */}
       <div className="p-8 text-center border-b border-white/10 z-10 relative">
         <div className="inline-block group">
           <div className="w-20 h-20 rounded-2xl bg-white mx-auto border-2 border-white/20 overflow-hidden shadow-lg p-2 flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
@@ -86,7 +159,6 @@ const Sidebar = ({ handleLogout, closeSidebar }) => {
         <p className="text-xs font-medium text-blue-200 mt-1">Sistem Manajemen Kinerja Mitra</p>
       </div>
 
-      {/* Navigasi */}
       <nav className="flex-1 py-6 space-y-2 overflow-y-auto no-scrollbar relative z-10">
         <p className="px-8 text-xs font-bold text-blue-200 uppercase mb-4 tracking-wider">Menu Utama</p>
         
@@ -96,13 +168,10 @@ const Sidebar = ({ handleLogout, closeSidebar }) => {
             <Link
               key={item.path}
               to={item.path}
-              onClick={closeSidebar} // Tutup sidebar saat menu diklik (UX Mobile)
+              onClick={onMenuClick} 
               className={`
                 relative group flex items-center gap-4 px-8 py-4 transition-colors duration-300 overflow-hidden
-                ${active 
-                  ? "text-[#1A2A80]" // UBAH TEKS AKTIF JADI #1A2A80
-                  : "text-blue-200 hover:text-white"
-                }
+                ${active ? "text-[#1A2A80]" : "text-blue-200 hover:text-white"}
               `}
               style={{
                 marginLeft: '20px',
@@ -113,7 +182,6 @@ const Sidebar = ({ handleLogout, closeSidebar }) => {
                 borderBottomRightRadius: '0px',
               }}
             >
-              {/* Background Animation (White) */}
               <div 
                 className={`
                   absolute inset-0 bg-white z-0
@@ -121,8 +189,6 @@ const Sidebar = ({ handleLogout, closeSidebar }) => {
                   ${active ? 'translate-x-0' : 'translate-x-full'} 
                 `}
               />
-
-              {/* UBAH ICON AKTIF JADI #1A2A80 */}
               <span className={`relative z-10 text-lg transition-transform duration-300 ${active ? 'scale-110 text-[#1A2A80]' : ''}`}>
                 {item.icon}
               </span>
@@ -134,7 +200,6 @@ const Sidebar = ({ handleLogout, closeSidebar }) => {
         })}
       </nav>
 
-      {/* Logout */}
       <div className="p-6 border-t border-white/10 z-10 bg-[#1A2A80]">
         <button
           onClick={handleLogout}
@@ -148,10 +213,12 @@ const Sidebar = ({ handleLogout, closeSidebar }) => {
   );
 };
 
+// --- LAYOUT UTAMA ---
 const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // State untuk Mobile Sidebar
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isProfileExpanded, setIsProfileExpanded] = useState(false);
 
   const handleLogout = () => {
     if (window.confirm("Apakah Anda yakin ingin keluar?")) {
@@ -161,17 +228,19 @@ const AdminLayout = () => {
     }
   };
 
+  const handleNavigation = () => {
+    setIsSidebarOpen(false);
+    setIsProfileExpanded(false);
+  };
+
   const currentItem = menuItems.find(item => item.path === location.pathname);
   const pageTitle = currentItem ? currentItem.label : "Admin Dashboard";
 
   return (
     <div className="flex h-screen bg-white font-sans overflow-hidden relative">
       
-      {/* Dekorasi Background */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gray-50 rounded-full mix-blend-multiply filter blur-3xl opacity-60 pointer-events-none"></div>
 
-      {/* === OVERLAY GELAP (MOBILE ONLY) === */}
-      {/* Muncul saat sidebar terbuka di mobile untuk fokus */}
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm transition-opacity"
@@ -179,11 +248,6 @@ const AdminLayout = () => {
         ></div>
       )}
 
-      {/* === SIDEBAR CONTAINER === */}
-      {/* - fixed: Agar mengambang di mobile
-          - md:relative: Agar statis di desktop
-          - translate-x: Mengatur visibilitas slide-in/slide-out
-      */}
       <div className={`
         fixed inset-y-0 left-0 z-40 w-72 h-full transition-transform duration-300 ease-in-out
         md:relative md:translate-x-0 md:block
@@ -191,22 +255,21 @@ const AdminLayout = () => {
       `}>
         <Sidebar 
           handleLogout={handleLogout} 
-          closeSidebar={() => setIsSidebarOpen(false)} // Tutup sidebar saat menu diklik
+          onMenuClick={handleNavigation} 
         />
       </div>
 
-      {/* === KONTEN UTAMA === */}
       <div className="flex-1 flex flex-col h-full relative z-10 pl-0 min-w-0">
         
-        {/* Header dengan Toggle */}
         <AdminHeader 
           title={pageTitle} 
           toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+          isProfileExpanded={isProfileExpanded}
+          setIsProfileExpanded={setIsProfileExpanded}
         />
 
-        {/* Area Konten */}
-        <main className="flex-1 overflow-y-auto p-4 md:pr-6 md:pb-6 md:pl-0 scrollbar-hide">
-          <div className="bg-white rounded-3xl md:rounded-r-3xl md:rounded-l-[40px] min-h-full p-4 md:p-10 relative overflow-hidden border border-gray-50 shadow-sm">
+        <main className="flex-1 overflow-y-auto p-4 md:pr-6 md:pb-6 md:pl-0 scrollbar-hide pt-0">
+          <div className="bg-white rounded-3xl md:rounded-r-3xl md:rounded-tl-[40px] md:rounded-bl-[40px] min-h-full p-4 md:p-10 relative overflow-hidden border border-gray-50 shadow-sm mt-4">
              <div className="relative z-10">
                <Outlet />
              </div>

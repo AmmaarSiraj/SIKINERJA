@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import PopupTambahAnggota from '../../components/admin/PopupTambahAnggota';
-// 1. IMPORT ICON
 import { 
   FaArrowLeft, 
   FaTrash, 
@@ -11,9 +10,8 @@ import {
   FaUserTie, 
   FaChartPie, 
   FaClipboardList, 
-  FaPhone, 
-  FaIdCard,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaMoneyBillWave
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -25,6 +23,8 @@ const DetailPenugasan = () => {
   
   const [penugasan, setPenugasan] = useState(null);
   const [anggota, setAnggota] = useState([]);
+  const [listHonorarium, setListHonorarium] = useState([]); // State untuk menyimpan data master honor
+  
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
@@ -37,17 +37,19 @@ const DetailPenugasan = () => {
       const token = getToken();
       const config = { headers: { Authorization: `Bearer ${token}` } };
 
-      const penugasanRes = await axios.get(`${API_URL}/api/penugasan/${id}`, config);
-      setPenugasan(penugasanRes.data);
+      // Ambil 3 Data sekaligus: Detail Penugasan, Daftar Anggota, dan Master Honorarium
+      const [penugasanRes, anggotaRes, honorRes] = await Promise.all([
+        axios.get(`${API_URL}/api/penugasan/${id}`, config),
+        axios.get(`${API_URL}/api/penugasan/${id}/anggota`, config),
+        axios.get(`${API_URL}/api/honorarium`, config)
+      ]);
 
-      try {
-        const anggotaRes = await axios.get(`${API_URL}/api/penugasan/${id}/anggota`, config);
-        setAnggota(anggotaRes.data);
-      } catch (anggotaErr) {
-        setAnggota([]); 
-      }
+      setPenugasan(penugasanRes.data);
+      setAnggota(anggotaRes.data || []);
+      setListHonorarium(honorRes.data || []);
 
     } catch (err) { 
+      console.error(err);
       setError(err.response?.data?.message || 'Gagal memuat data utama.');
     } finally {
       setIsLoading(false);
@@ -58,7 +60,20 @@ const DetailPenugasan = () => {
     fetchDetailData();
   }, [id]);
 
-  // --- HANDLER HAPUS ANGGOTA (DENGAN SWEETALERT) ---
+  // --- LOGIKA PENCARIAN HONOR (FIX NaN) ---
+  const getHonorValue = (kodeJabatan) => {
+    if (!penugasan || !kodeJabatan) return 0;
+
+    // Cari honor yang cocok dengan Sub Kegiatan ini DAN Jabatan anggota tersebut
+    const match = listHonorarium.find(h => 
+      // Gunakan '==' untuk perbandingan longgar (antisipasi string vs number)
+      h.id_subkegiatan == penugasan.id_subkegiatan && 
+      h.kode_jabatan === kodeJabatan
+    );
+
+    return match ? Number(match.tarif) : 0;
+  };
+
   const handleRemoveAnggota = async (id_kelompok, nama_mitra) => {
     const result = await Swal.fire({
       title: 'Keluarkan Anggota?',
@@ -79,23 +94,14 @@ const DetailPenugasan = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         
-        await Swal.fire(
-          'Dikeluarkan!',
-          'Anggota berhasil dikeluarkan dari tim.',
-          'success'
-        );
+        await Swal.fire('Dikeluarkan!', 'Anggota berhasil dikeluarkan dari tim.', 'success');
         fetchDetailData(); 
       } catch (err) {
-        Swal.fire(
-          'Gagal!',
-          'Terjadi kesalahan saat menghapus anggota.',
-          'error'
-        );
+        Swal.fire('Gagal!', 'Terjadi kesalahan saat menghapus anggota.', 'error');
       }
     }
   };
 
-  // --- HANDLER BUBARKAN TIM (DENGAN SWEETALERT) ---
   const handleDeletePenugasan = async () => {
     const result = await Swal.fire({
       title: 'Bubarkan Tim?',
@@ -116,20 +122,19 @@ const DetailPenugasan = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        await Swal.fire(
-          'Dibubarkan!',
-          'Tim penugasan berhasil dibubarkan.',
-          'success'
-        );
+        await Swal.fire('Dibubarkan!', 'Tim penugasan berhasil dibubarkan.', 'success');
         navigate('/admin/penugasan');
       } catch (err) {
-        Swal.fire(
-          'Gagal!',
-          'Terjadi kesalahan saat membubarkan tim.',
-          'error'
-        );
+        Swal.fire('Gagal!', 'Terjadi kesalahan saat membubarkan tim.', 'error');
       }
     }
+  };
+
+  const formatRupiah = (num) => {
+    // Pastikan input adalah number, jika tidak valid (NaN/null), return Rp 0
+    const value = Number(num);
+    if (isNaN(value)) return 'Rp 0';
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
   };
   
   if (isLoading) return <div className="text-center py-10 text-gray-500">Memuat detail...</div>;
@@ -169,8 +174,6 @@ const DetailPenugasan = () => {
         {/* --- KARTU INFO --- */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            
-            {/* Info Pengawas */}
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
                 <FaUserTie />
@@ -182,7 +185,6 @@ const DetailPenugasan = () => {
               </div>
             </div>
 
-            {/* Info Anggota */}
             <div>
               <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-2 flex items-center gap-2">
                 <FaChartPie /> Total Anggota
@@ -196,7 +198,6 @@ const DetailPenugasan = () => {
                 </span>
               </div>
             </div>
-
           </div>
         </div>
 
@@ -217,8 +218,8 @@ const DetailPenugasan = () => {
               <thead className="bg-white">
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Nama Mitra</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Identitas</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Kontak</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Jabatan</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Honor</th>
                   <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Aksi</th>
                 </tr>
               </thead>
@@ -233,39 +234,55 @@ const DetailPenugasan = () => {
                     </td>
                   </tr>
                 ) : (
-                  anggota.map((item) => (
-                    <tr key={item.id_kelompok} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-[#1A2A80] font-bold text-xs">
-                            {item.nama_lengkap.charAt(0)}
+                  anggota.map((item) => {
+                    // Hitung honor di sini
+                    const honorValue = getHonorValue(item.kode_jabatan);
+
+                    return (
+                      <tr key={item.id_kelompok} className="hover:bg-blue-50/30 transition-colors">
+                        {/* KOLOM NAMA MITRA */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-[#1A2A80] font-bold text-xs">
+                              {item.nama_lengkap.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-gray-900">{item.nama_lengkap}</div>
+                              <div className="text-xs text-gray-500 font-mono">{item.nik}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="text-sm font-bold text-gray-900">{item.nama_lengkap}</div>
-                            <div className="text-xs text-gray-500">{item.nama_jabatan || 'Mitra'}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2 text-sm text-gray-600 font-mono bg-gray-50 px-2 py-1 rounded w-fit">
-                          <FaIdCard className="text-gray-400"/> {item.nik}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                         <div className="flex items-center gap-2">
-                           <FaPhone className="text-gray-400" size={12}/> {item.no_hp}
-                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <button 
-                          onClick={() => handleRemoveAnggota(item.id_kelompok, item.nama_lengkap)}
-                          className="text-red-500 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 px-3 py-1 rounded-full transition text-xs flex items-center gap-1 ml-auto"
-                        >
-                          <FaTrash size={10} /> Keluarkan
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+
+                        {/* KOLOM JABATAN */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {item.nama_jabatan}
+                          </span>
+                          {item.kode_jabatan && (
+                             <div className="text-[10px] text-gray-400 mt-1 ml-1 font-mono">{item.kode_jabatan}</div>
+                          )}
+                        </td>
+
+                        {/* KOLOM HONOR */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                           <div className="text-sm font-bold text-green-600 flex items-center gap-1">
+                             <FaMoneyBillWave size={12} className="text-green-500" />
+                             {formatRupiah(honorValue)}
+                           </div>
+                        </td>
+
+                        {/* KOLOM AKSI */}
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                          <button 
+                            onClick={() => handleRemoveAnggota(item.id_kelompok, item.nama_lengkap)}
+                            className="text-red-500 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 px-3 py-1 rounded-full transition text-xs flex items-center gap-1 ml-auto"
+                          >
+                            <FaTrash size={10} /> Keluarkan
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -278,7 +295,6 @@ const DetailPenugasan = () => {
         isOpen={isPopupOpen}
         onClose={() => setIsPopupOpen(false)}
         id_penugasan={id}
-        id_pengawas={null} 
         existingAnggotaIds={anggota.map(a => a.id_mitra)}
         onAnggotaAdded={fetchDetailData}
       />

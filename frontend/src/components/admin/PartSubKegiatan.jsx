@@ -64,11 +64,11 @@ const PartSubKegiatan = ({ subKegiatans, setSubKegiatans }) => {
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 flex items-center gap-1">
                            <FaClock /> Periode (Bulan/Tahun)
                         </label>
+                        {/* PERUBAHAN DI SINI: type="text" menjadi type="month" */}
                         <input
-                            type="text"
+                            type="month"
                             value={sub.periode}
                             onChange={(e) => handleChange(sub.id, 'periode', e.target.value)}
-                            placeholder="Contoh: Januari 2025"
                             className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-transparent text-sm transition outline-none"
                         />
                     </div>

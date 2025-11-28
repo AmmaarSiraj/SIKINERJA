@@ -206,6 +206,20 @@ const ManageKegiatan = () => {
       : <span className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-yellow-500 rounded-full shadow-sm">Proses</span>;
   };
 
+  const formatPeriode = (periodeStr) => {
+    if (!periodeStr) return '-';
+    const parts = periodeStr.split('-');
+    if (parts.length === 2) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      if (!isNaN(year) && !isNaN(month)) {
+        const date = new Date(year, month - 1);
+        return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      }
+    }
+    return periodeStr;
+  };
+
   if (loading) return <div className="text-center py-10 text-gray-500">Memuat data...</div>;
   if (error) return <div className="text-center py-10 text-red-600">Error: {error}</div>;
 
@@ -330,8 +344,8 @@ const ManageKegiatan = () => {
                                         {sub.deskripsi}
                                       </div>
                                     </td>
-                                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                                      {sub.periode || '-'}
+                                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap capitalize">
+                                      {formatPeriode(sub.periode)}
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                       {renderRecruitmentBadge(sub.status_rekrutmen)}

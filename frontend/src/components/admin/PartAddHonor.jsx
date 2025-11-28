@@ -32,7 +32,7 @@ const PartAddHonor = ({ honorList, onChange }) => {
 
   const addRow = () => {
     const newHonor = {
-      id: Date.now(), // ID sementara untuk key react
+      id: Date.now(),
       kode_jabatan: '',
       tarif: 0,
       id_satuan: satuanOptions.length > 0 ? satuanOptions[0].id : 1,
@@ -88,20 +88,33 @@ const PartAddHonor = ({ honorList, onChange }) => {
                 </select>
               </div>
 
-              {/* Tarif */}
+              {/* Tarif (Diperbarui UX-nya) */}
               <div className="w-full md:w-1/3">
                 <label className="text-[10px] font-bold text-gray-400 block mb-1 uppercase">Tarif (Rp)</label>
                 <input
                   type="number"
                   min="0"
                   placeholder="0"
+                  // Jika nilai 0, biarkan kosong agar bersih (opsional), atau tetap tampilkan honor.tarif
                   value={honor.tarif}
-                  onChange={(e) => updateRow(honor.id, 'tarif', parseFloat(e.target.value) || 0)}
+                  // 1. OnFocus: Auto block text agar user bisa langsung timpa
+                  onFocus={(e) => e.target.select()}
+                  // 2. OnChange: Izinkan string kosong sementara
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateRow(honor.id, 'tarif', val === '' ? '' : parseFloat(val));
+                  }}
+                  // 3. OnBlur: Jika ditinggalkan kosong, kembalikan ke 0
+                  onBlur={() => {
+                    if (honor.tarif === '' || honor.tarif === null) {
+                        updateRow(honor.id, 'tarif', 0);
+                    }
+                  }}
                   className="w-full px-2 py-2 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-[#1A2A80] focus:border-[#1A2A80] outline-none font-bold text-gray-700"
                 />
               </div>
 
-              {/* Volume & Satuan */}
+              {/* Volume & Satuan (Diperbarui UX-nya) */}
               <div className="w-full md:w-1/3 flex gap-2">
                 <div className="flex-1">
                    <label className="text-[10px] font-bold text-gray-400 block mb-1 uppercase">Per Vol</label>
@@ -109,7 +122,19 @@ const PartAddHonor = ({ honorList, onChange }) => {
                     type="number"
                     min="1"
                     value={honor.basis_volume}
-                    onChange={(e) => updateRow(honor.id, 'basis_volume', parseInt(e.target.value) || 1)}
+                    // 1. OnFocus: Auto block angka "1"
+                    onFocus={(e) => e.target.select()}
+                    // 2. OnChange: Izinkan kosong, jangan paksa '|| 1' di sini
+                    onChange={(e) => {
+                        const val = e.target.value;
+                        updateRow(honor.id, 'basis_volume', val === '' ? '' : parseInt(val));
+                    }}
+                    // 3. OnBlur: Jika user membiarkan kosong lalu pindah, baru set default 1
+                    onBlur={() => {
+                        if (!honor.basis_volume) {
+                            updateRow(honor.id, 'basis_volume', 1);
+                        }
+                    }}
                     className="w-full px-2 py-2 border border-gray-300 rounded text-xs text-center outline-none focus:border-[#1A2A80]"
                   />
                 </div>

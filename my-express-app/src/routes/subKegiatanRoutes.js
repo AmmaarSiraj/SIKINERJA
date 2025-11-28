@@ -5,6 +5,7 @@ const {
   getSubKegiatanByKegiatanId,
   getSubKegiatanById,
   updateSubKegiatanStatus,
+  updateSubKegiatanInfo, // <--- 1. PASTIKAN INI DI-IMPORT
   deleteSubKegiatan,
   getAllSubKegiatan,
   importSubKegiatan
@@ -16,12 +17,15 @@ const uploadMitra = require('../midleware/uploadMitra');
 router.get('/kegiatan/:id_kegiatan', getSubKegiatanByKegiatanId);
 router.put('/:id/status', updateSubKegiatanStatus);
 
+// --- TAMBAHKAN BARIS INI ---
+router.put('/:id/info', updateSubKegiatanInfo); // <--- 2. DAFTARKAN ROUTE INI
+// ---------------------------
+
 // Endpoint untuk admin (jika perlu)
 router.post('/', createSubKegiatan);
 router.delete('/:id', deleteSubKegiatan);
 router.get('/:id', getSubKegiatanById);
 router.get('/', getAllSubKegiatan);
-
 
 router.post('/import', 
     uploadMitra.single('file'), 

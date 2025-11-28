@@ -1,12 +1,9 @@
 // src/controllers/penugasanController.js
 const { pool } = require('../config/db');
-const XLSX = require('xlsx'); 
+const XLSX = require('xlsx');
 const fs = require('fs');
 
-// Query JOIN Terbaru:
-// 1. Menggunakan p.id_subkegiatan (bukan p.id_kegiatan)
-// 2. Join ke users untuk pengawas (bukan ke mitra)
-// 3. Hapus jumlah_max_mitra
+// Query standar untuk mengambil detail penugasan beserta info pengawas & kegiatan
 const selectDetailQuery = `
   SELECT 
     p.id AS id_penugasan,
@@ -27,32 +24,55 @@ const selectDetailQuery = `
   JOIN users AS u ON p.id_pengawas = u.id
 `;
 
+// CREATE: Membuat Penugasan Baru + Menambahkan Anggota & Jabatan
 exports.createPenugasan = async (req, res) => {
-  const { id_subkegiatan, id_pengawas } = req.body;
+  const { id_subkegiatan, id_pengawas, anggota } = req.body;
 
   if (!id_subkegiatan || !id_pengawas) {
     return res.status(400).json({ error: 'ID Sub-Kegiatan dan ID Pengawas wajib diisi.' });
   }
 
+  let connection;
   try {
-    // Hapus jumlah_max_mitra
-    const sql = `
-      INSERT INTO penugasan (id_subkegiatan, id_pengawas) 
-      VALUES (?, ?)
-    `;
-    const [result] = await pool.query(sql, [
-      id_subkegiatan,
-      id_pengawas
-    ]);
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
 
-    const [rows] = await pool.query(`${selectDetailQuery} WHERE p.id = ?`, [result.insertId]);
-    res.status(201).json(rows[0]);
+    // 1. Insert Header Penugasan
+    const sqlPenugasan = `INSERT INTO penugasan (id_subkegiatan, id_pengawas) VALUES (?, ?)`;
+    const [result] = await connection.query(sqlPenugasan, [id_subkegiatan, id_pengawas]);
+    const newPenugasanId = result.insertId;
+
+    // 2. Insert Anggota ke Kelompok Penugasan (Beserta Jabatannya)
+    if (anggota && Array.isArray(anggota) && anggota.length > 0) {
+      for (const item of anggota) {
+        // Masukkan id_mitra dan kode_jabatan langsung ke tabel kelompok_penugasan
+        await connection.query(
+          `INSERT INTO kelompok_penugasan (id_penugasan, id_mitra, kode_jabatan) VALUES (?, ?, ?)`,
+          [newPenugasanId, item.id_mitra, item.kode_jabatan || null]
+        );
+      }
+    }
+
+    await connection.commit();
+
+    // Ambil data yang baru dibuat untuk response
+    const [rows] = await connection.query(`${selectDetailQuery} WHERE p.id = ?`, [newPenugasanId]);
+    
+    res.status(201).json({
+      message: 'Penugasan berhasil dibuat beserta anggota tim.',
+      data: rows[0]
+    });
+
   } catch (error) {
-    console.error(error);
+    if (connection) await connection.rollback();
+    console.error("Create Penugasan Error:", error);
     res.status(500).json({ error: 'Terjadi kesalahan pada server.', details: error.message });
+  } finally {
+    if (connection) connection.release();
   }
 };
 
+// READ: Ambil Semua Penugasan
 exports.getAllPenugasan = async (req, res) => {
   try {
     const [rows] = await pool.query(`${selectDetailQuery} ORDER BY p.created_at DESC`);
@@ -63,6 +83,7 @@ exports.getAllPenugasan = async (req, res) => {
   }
 };
 
+// READ: Ambil Penugasan by ID
 exports.getPenugasanById = async (req, res) => {
   const { id } = req.params;
   try {
@@ -77,10 +98,10 @@ exports.getPenugasanById = async (req, res) => {
   }
 };
 
+// READ: Ambil Anggota Tim dalam Penugasan
 exports.getAnggotaByPenugasanId = async (req, res) => {
   const { id } = req.params; // id penugasan
   try {
-    // UPDATE QUERY: Join ke tabel jabatan & jabatan_mitra
     const sql = `
       SELECT 
         m.id AS id_mitra, 
@@ -89,18 +110,18 @@ exports.getAnggotaByPenugasanId = async (req, res) => {
         m.no_hp,
         kp.id AS id_kelompok,
         kp.created_at AS bergabung_sejak,
-        IFNULL(jm.nama_jabatan, 'Belum ditentukan') AS nama_jabatan
+        kp.kode_jabatan,
+        IFNULL(jm.nama_jabatan, 'Belum ditentukan') AS nama_jabatan,
+        IFNULL(h.tarif, 0) AS honor
       FROM kelompok_penugasan AS kp
       JOIN mitra AS m ON kp.id_mitra = m.id
-      -- Join ke tabel jabatan untuk cari kode jabatannya
-      LEFT JOIN jabatan j ON (j.id_mitra = m.id AND j.id_penugasan = kp.id_penugasan)
-      -- Join ke tabel master jabatan_mitra untuk ambil nama jabatannya
-      LEFT JOIN jabatan_mitra jm ON j.kode_jabatan = jm.kode_jabatan
+      JOIN penugasan AS p ON kp.id_penugasan = p.id
+      LEFT JOIN jabatan_mitra jm ON kp.kode_jabatan = jm.kode_jabatan
+      LEFT JOIN honorarium h ON (h.id_subkegiatan = p.id_subkegiatan AND h.kode_jabatan = kp.kode_jabatan)
       WHERE kp.id_penugasan = ?
       ORDER BY m.nama_lengkap ASC
     `;
     const [rows] = await pool.query(sql, [id]);
-    
     res.status(200).json(rows);
   } catch (error) {
     console.error(error);
@@ -108,6 +129,7 @@ exports.getAnggotaByPenugasanId = async (req, res) => {
   }
 };
 
+// UPDATE: Edit Data Penugasan (Header)
 exports.updatePenugasan = async (req, res) => {
   const { id } = req.params;
   const { id_subkegiatan, id_pengawas } = req.body;
@@ -133,6 +155,7 @@ exports.updatePenugasan = async (req, res) => {
   }
 };
 
+// DELETE: Hapus Penugasan
 exports.deletePenugasan = async (req, res) => {
   const { id } = req.params;
   try {
@@ -147,6 +170,7 @@ exports.deletePenugasan = async (req, res) => {
   }
 };
 
+// IMPORT: Upload Excel Penugasan
 exports.importPenugasan = async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'File tidak ditemukan.' });
@@ -154,7 +178,6 @@ exports.importPenugasan = async (req, res) => {
 
   let connection;
   try {
-    // 1. Baca File Excel/CSV
     const workbook = XLSX.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0];
     const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
@@ -164,7 +187,6 @@ exports.importPenugasan = async (req, res) => {
       return res.status(400).json({ message: 'File kosong.' });
     }
 
-    // 2. Setup Transaksi Database
     connection = await pool.getConnection();
 
     let successCount = 0;
@@ -173,16 +195,12 @@ exports.importPenugasan = async (req, res) => {
 
     const idPengawas = req.user ? req.user.id : 1; 
 
-    console.log(`[IMPORT PENUGASAN] Memproses ${data.length} baris...`);
-
     for (const [index, row] of data.entries()) {
-      const rowNum = index + 2; // Baris Excel (Header=1)
+      const rowNum = index + 2;
       
-      // Normalisasi Key (Lowercase & Trim)
       const cleanRow = {};
       Object.keys(row).forEach(key => cleanRow[key.trim().toLowerCase()] = row[key]);
 
-      // Ambil Kolom
       let nik = String(cleanRow['nik'] || '').replace(/'/g, '').trim();
       const idSubKegiatan = cleanRow['kegiatan_id'] || cleanRow['id_sub_kegiatan']; 
       const kodeJabatan = cleanRow['kode_jabatan'];
@@ -194,14 +212,12 @@ exports.importPenugasan = async (req, res) => {
       }
 
       try {
-        // A. Cari ID Mitra berdasarkan NIK
-        const [mitraRows] = await connection.query('SELECT id, nama_lengkap FROM mitra WHERE nik = ?', [nik]);
+        const [mitraRows] = await connection.query('SELECT id FROM mitra WHERE nik = ?', [nik]);
         if (mitraRows.length === 0) {
           throw new Error(`NIK ${nik} tidak terdaftar di database Mitra.`);
         }
         const idMitra = mitraRows[0].id;
 
-        // B. Cek/Buat Penugasan untuk Sub Kegiatan ini
         const [penugasanRows] = await connection.query(
           'SELECT id FROM penugasan WHERE id_subkegiatan = ? LIMIT 1', 
           [idSubKegiatan]
@@ -211,13 +227,12 @@ exports.importPenugasan = async (req, res) => {
         if (penugasanRows.length > 0) {
           idPenugasan = penugasanRows[0].id;
         } else {
-          // Cek validitas sub kegiatan dulu
+          // Validasi Sub Kegiatan
           const [subRows] = await connection.query('SELECT id FROM subkegiatan WHERE id = ?', [idSubKegiatan]);
           if (subRows.length === 0) {
             throw new Error(`ID Sub Kegiatan '${idSubKegiatan}' tidak valid.`);
           }
 
-          // Insert Tanpa Jumlah Max Mitra
           const [newP] = await connection.query(
             'INSERT INTO penugasan (id_subkegiatan, id_pengawas) VALUES (?, ?)', 
             [idSubKegiatan, idPengawas]
@@ -225,37 +240,26 @@ exports.importPenugasan = async (req, res) => {
           idPenugasan = newP.insertId;
         }
 
-        // C. Masukkan ke Kelompok Penugasan (Cek duplikasi)
+        // Cek Duplikasi di Kelompok
         const [cekKelompok] = await connection.query(
           'SELECT id FROM kelompok_penugasan WHERE id_penugasan = ? AND id_mitra = ?',
           [idPenugasan, idMitra]
         );
 
         if (cekKelompok.length === 0) {
+          // Insert ke Kelompok Penugasan dengan Jabatan
           await connection.query(
-            'INSERT INTO kelompok_penugasan (id_penugasan, id_mitra) VALUES (?, ?)',
-            [idPenugasan, idMitra]
+            'INSERT INTO kelompok_penugasan (id_penugasan, id_mitra, kode_jabatan) VALUES (?, ?, ?)',
+            [idPenugasan, idMitra, kodeJabatan || null]
           );
-        }
-
-        // D. Simpan Jabatan (Jika ada kode_jabatan)
-        if (kodeJabatan) {
-            const [cekJab] = await connection.query(
-                'SELECT id FROM jabatan WHERE id_penugasan = ? AND id_mitra = ?',
-                [idPenugasan, idMitra]
-            );
-
-            if (cekJab.length > 0) {
-                await connection.query(
-                    'UPDATE jabatan SET kode_jabatan = ? WHERE id = ?',
-                    [kodeJabatan, cekJab[0].id]
-                );
-            } else {
-                await connection.query(
-                    'INSERT INTO jabatan (kode_jabatan, id_penugasan, id_mitra) VALUES (?, ?, ?)',
-                    [kodeJabatan, idPenugasan, idMitra]
-                );
-            }
+        } else {
+          // Jika sudah ada, update jabatannya saja (Opsional)
+          if (kodeJabatan) {
+             await connection.query(
+                'UPDATE kelompok_penugasan SET kode_jabatan = ? WHERE id = ?',
+                [kodeJabatan, cekKelompok[0].id]
+             );
+          }
         }
 
         successCount++;
@@ -266,7 +270,6 @@ exports.importPenugasan = async (req, res) => {
       }
     }
 
-    // Selesai loop
     fs.unlinkSync(req.file.path); 
     res.json({
         message: 'Proses import selesai.',

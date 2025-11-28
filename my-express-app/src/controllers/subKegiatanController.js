@@ -199,6 +199,7 @@ exports.getAllSubKegiatan = async (req, res) => {
         s.id, 
         s.nama_sub_kegiatan, 
         s.deskripsi, 
+        s.periode,
         k.nama_kegiatan 
       FROM subkegiatan s
       JOIN kegiatan k ON s.id_kegiatan = k.id

@@ -1,5 +1,5 @@
 // src/layouts/AdminLayout.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   FaHome, 
@@ -16,7 +16,6 @@ import {
 import logoSikinerja from '../assets/logo.png'; 
 import PartDetailProfileAdmin from '../components/admin/PartDetailProfileAdmin';
 
-// Daftar Menu
 const menuItems = [
   { path: "/admin/dashboard", label: "Dashboard", icon: <FaHome /> },
   { path: "/admin/manage-users", label: "Manajemen User", icon: <FaUsers /> },
@@ -24,9 +23,9 @@ const menuItems = [
   { path: "/admin/penugasan", label: "Penugasan", icon: <FaHandshake /> },
   { path: "/admin/pengajuan-mitra", label: "Manajemen Mitra", icon: <FaUserCheck /> },
   { path: "/admin/laporan", label: "Template Laporan", icon: <FaFileAlt /> },
+  { path: "/admin/manajemen-jabatan", label: "Manajemen Jabatan", icon: <FaFileAlt /> },
 ];
 
-// --- HEADER ---
 const AdminHeader = ({ title, toggleSidebar, isProfileExpanded, setIsProfileExpanded }) => {
   const currentDate = new Date().toLocaleDateString('id-ID', { 
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
@@ -34,8 +33,10 @@ const AdminHeader = ({ title, toggleSidebar, isProfileExpanded, setIsProfileExpa
 
   const [userData, setUserData] = useState({ username: 'Admin', role: 'admin', email: '', id: '' });
   
-  // State untuk menyimpan lebar konten widget saat tertutup
-  const [widgetWidth, setWidgetWidth] = useState(300);
+  // State Ukuran Widget
+  const [widgetWidth, setWidgetWidth] = useState(300); // Lebar saat tertutup
+  const [expandedWidth, setExpandedWidth] = useState(window.innerWidth); // Lebar saat terbuka (BARU)
+  const [headerHeight, setHeaderHeight] = useState(80);
   const widgetContentRef = useRef(null);
 
   useEffect(() => {
@@ -50,13 +51,33 @@ const AdminHeader = ({ title, toggleSidebar, isProfileExpanded, setIsProfileExpa
     }
   }, []);
 
-  // Effect untuk mengukur lebar konten secara otomatis
-  useEffect(() => {
+  // -- FUNGSI KALKULASI UKURAN RESPONSIF --
+  const calculateWidgetSize = () => {
+    const width = window.innerWidth;
+    const isMobile = width < 768; // Breakpoint md Tailwind
+    
+    // 1. Tentukan Tinggi Header
+    setHeaderHeight(isMobile ? 64 : 80);
+
+    // 2. Hitung Lebar Widget saat TERTUTUP (Collapsed)
     if (widgetContentRef.current) {
-      // Padding container: pl-10 (40px) + pr-8 (32px) = 72px + buffer 15px
-      const width = widgetContentRef.current.getBoundingClientRect().width + 87; 
-      setWidgetWidth(width);
+      const contentWidth = widgetContentRef.current.getBoundingClientRect().width;
+      const buffer = isMobile ? 40 : 90; 
+      setWidgetWidth(contentWidth + buffer);
     }
+
+    // 3. Hitung Lebar Widget saat TERBUKA (Expanded) - LOGIKA BARU
+    // Di Desktop, kurangi lebar sidebar (288px / w-72). 
+    // Di Mobile, ambil full width.
+    const sidebarWidth = 288;
+    setExpandedWidth(isMobile ? width : width - sidebarWidth);
+  };
+
+  // Jalankan kalkulasi saat mount, user berubah, atau window resize
+  useLayoutEffect(() => {
+    calculateWidgetSize();
+    window.addEventListener('resize', calculateWidgetSize);
+    return () => window.removeEventListener('resize', calculateWidgetSize);
   }, [userData.username]);
 
   const handleProfileClick = () => {
@@ -70,30 +91,30 @@ const AdminHeader = ({ title, toggleSidebar, isProfileExpanded, setIsProfileExpa
   };
 
   return (
-    // PERUBAHAN DI SINI: Mengubah 'pt-5' menjadi 'pt-2' agar lebih rapat ke atas
-    <header className="flex justify-between items-start pt-1 px-4 md:px-8 bg-transparent relative h-20 z-30">
+    <header className="flex justify-between items-start pt-2 px-4 md:px-8 bg-transparent relative h-16 md:h-20 z-30 transition-all duration-300">
       
       {/* JUDUL HALAMAN */}
-      <div className={`flex items-center gap-4 mt-2 transition-all duration-500 ${isProfileExpanded ? 'opacity-0 -translate-x-4 pointer-events-none' : 'opacity-100 translate-x-0'}`}>
+      <div className={`flex items-center gap-4 mt-1 md:mt-2 transition-all duration-500 ${isProfileExpanded ? 'opacity-0 -translate-x-4 pointer-events-none' : 'opacity-100 translate-x-0'}`}>
         <button 
           onClick={toggleSidebar}
-          className="md:hidden text-gray-600 hover:text-[#1A2A80] text-2xl focus:outline-none"
+          className="md:hidden text-gray-600 hover:text-[#1A2A80] text-xl focus:outline-none"
         >
           <FaBars />
         </button>
 
         <div>
-          <h2 className="text-2xl md:text-3xl font-extrabold text-gray-800 tracking-tight">{title}</h2>
-          <p className="text-xs md:text-sm text-gray-500 mt-1 font-medium">{currentDate}</p>
+          <h2 className="text-xl md:text-3xl font-extrabold text-gray-800 tracking-tight line-clamp-1">{title}</h2>
+          <p className="text-[10px] md:text-sm text-gray-500 font-medium">{currentDate}</p>
         </div>
       </div>
       
-      {/* PROFILE CONTAINER (ANIMASI) */}
+      {/* WIDGET PROFIL */}
       <div 
         onClick={handleProfileClick}
         style={{
-            width: isProfileExpanded ? '100vw' : `${widgetWidth}px`,
-            height: isProfileExpanded ? '100vh' : '80px', // Sedikit diperkecil tingginya agar proporsional
+            // LOGIKA BARU: Gunakan expandedWidth saat terbuka agar pas di sebelah sidebar
+            width: isProfileExpanded ? `${expandedWidth}px` : `${widgetWidth}px`,
+            height: isProfileExpanded ? '100vh' : `${headerHeight}px`,
             borderRadius: isProfileExpanded ? '0px' : '0px 0px 0px 40px'
         }}
         className={`
@@ -104,17 +125,16 @@ const AdminHeader = ({ title, toggleSidebar, isProfileExpanded, setIsProfileExpa
             ${isProfileExpanded ? 'cursor-default' : 'cursor-pointer hover:bg-gray-200'}
         `}
       >
-         {/* KONTEN */}
          <div className="w-full h-full relative">
            {isProfileExpanded ? (
               <PartDetailProfileAdmin user={userData} onClose={handleCloseProfile} />
            ) : (
-              // TAMPILAN WIDGET
-              <div className="absolute top-0 right-0 w-full h-full flex items-center justify-end pr-8 pt-2">
+              // KONTEN DALAM KEADAAN TERTUTUP
+              <div className="absolute top-0 right-0 w-full h-full flex items-center justify-end pr-4 md:pr-8 pt-1 md:pt-2">
                   
-                  {/* Wrapper konten */}
-                  <div ref={widgetContentRef} className="flex items-center gap-4">
-                      <div className="text-right whitespace-nowrap">
+                  <div ref={widgetContentRef} className="flex items-center gap-3 md:gap-4">
+                      {/* Teks Nama & Role (Hidden di Mobile agar rapi) */}
+                      <div className="text-right whitespace-nowrap hidden md:block">
                           <p className="text-sm font-bold text-gray-800 leading-tight block select-none">
                               {userData.username}
                           </p>
@@ -122,8 +142,9 @@ const AdminHeader = ({ title, toggleSidebar, isProfileExpanded, setIsProfileExpa
                               {userData.role === 'admin' ? 'Administrator' : 'Mitra'}
                           </span>
                       </div>
+
                       <div className="bg-white p-1 rounded-full shadow-sm flex-shrink-0">
-                          <FaUserCircle className="text-4xl text-gray-400" />
+                          <FaUserCircle className="text-3xl md:text-4xl text-gray-400" />
                       </div>
                   </div>
 
@@ -131,19 +152,16 @@ const AdminHeader = ({ title, toggleSidebar, isProfileExpanded, setIsProfileExpa
            )}
          </div>
       </div>
-
     </header>
   );
 };
 
-// --- SIDEBAR (Tetap Sama) ---
 const Sidebar = ({ handleLogout, onMenuClick }) => {
   const location = useLocation();
   const isActive = (path) => location.pathname === path;
 
   return (
     <aside className="w-72 bg-[#1A2A80] text-white flex flex-col overflow-hidden relative z-20 h-full shadow-2xl md:shadow-none">
-      
       <div className="p-8 text-center border-b border-white/10 z-10 relative">
         <div className="inline-block group">
           <div className="w-20 h-20 rounded-2xl bg-white mx-auto border-2 border-white/20 overflow-hidden shadow-lg p-2 flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
@@ -154,7 +172,6 @@ const Sidebar = ({ handleLogout, onMenuClick }) => {
             />
           </div>
         </div>
-        
         <h1 className="mt-4 text-2xl font-extrabold tracking-wider">SIKINERJA</h1>
         <p className="text-xs font-medium text-blue-200 mt-1">Sistem Manajemen Kinerja Mitra</p>
       </div>
@@ -213,7 +230,6 @@ const Sidebar = ({ handleLogout, onMenuClick }) => {
   );
 };
 
-// --- LAYOUT UTAMA ---
 const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -238,9 +254,10 @@ const AdminLayout = () => {
 
   return (
     <div className="flex h-screen bg-white font-sans overflow-hidden relative">
-      
+      {/* Background Decoration */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gray-50 rounded-full mix-blend-multiply filter blur-3xl opacity-60 pointer-events-none"></div>
 
+      {/* Mobile Overlay */}
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm transition-opacity"
@@ -248,6 +265,7 @@ const AdminLayout = () => {
         ></div>
       )}
 
+      {/* Sidebar */}
       <div className={`
         fixed inset-y-0 left-0 z-40 w-72 h-full transition-transform duration-300 ease-in-out
         md:relative md:translate-x-0 md:block
@@ -259,8 +277,8 @@ const AdminLayout = () => {
         />
       </div>
 
+      {/* Main Content */}
       <div className="flex-1 flex flex-col h-full relative z-10 pl-0 min-w-0">
-        
         <AdminHeader 
           title={pageTitle} 
           toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
@@ -276,7 +294,6 @@ const AdminLayout = () => {
           </div>
         </main>
       </div>
-
     </div>
   );
 };

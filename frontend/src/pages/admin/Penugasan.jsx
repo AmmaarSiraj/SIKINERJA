@@ -24,6 +24,7 @@ const Penugasan = () => {
   // State untuk Dropdown & Cache Anggota
   const [expandedTaskId, setExpandedTaskId] = useState(null); 
   const [membersCache, setMembersCache] = useState({});
+  // loadingMembers tidak terlalu dibutuhkan lagi karena sudah preload, tapi dijaga untuk fallback
   const [loadingMembers, setLoadingMembers] = useState(false);
 
   // State untuk Import
@@ -40,15 +41,21 @@ const Penugasan = () => {
     });
   };
 
-  // 1. Fetch & Group Data Penugasan
+  // 1. Fetch & Group Data Penugasan + PRELOAD Anggota
   const fetchPenugasan = async () => {
     setIsLoading(true);
     try {
       const token = getToken();
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      const response = await axios.get(`${API_URL}/api/penugasan`, config);
       
-      const grouped = response.data.reduce((acc, item) => {
+      // PERUBAHAN: Panggil 2 endpoint sekaligus (Paralel)
+      const [resPenugasan, resKelompok] = await Promise.all([
+        axios.get(`${API_URL}/api/penugasan`, config),
+        axios.get(`${API_URL}/api/kelompok-penugasan`, config)
+      ]);
+      
+      // A. Grouping Data Penugasan (Utama)
+      const grouped = resPenugasan.data.reduce((acc, item) => {
         const key = item.nama_kegiatan;
         if (!acc[key]) acc[key] = [];
         acc[key].push(item);
@@ -56,6 +63,30 @@ const Penugasan = () => {
       }, {});
 
       setGroupedPenugasan(grouped);
+
+      // B. Grouping Data Anggota (Preload ke Cache)
+      // Kita mapping array flat dari backend menjadi object { id_penugasan: [array_anggota] }
+      const membersMap = {};
+      
+      if (Array.isArray(resKelompok.data)) {
+        resKelompok.data.forEach(member => {
+          // Normalisasi nama field (antisipasi beda nama field di backend)
+          const cleanMember = {
+            ...member,
+            // Gunakan nama_mitra jika nama_lengkap kosong (fallback)
+            nama_lengkap: member.nama_lengkap || member.nama_mitra, 
+          };
+
+          const pId = member.id_penugasan;
+          if (!membersMap[pId]) {
+            membersMap[pId] = [];
+          }
+          membersMap[pId].push(cleanMember);
+        });
+      }
+
+      setMembersCache(membersMap);
+
     } catch (err) {
       console.error("Gagal load data:", err);
     } finally {
@@ -75,7 +106,9 @@ const Penugasan = () => {
     }
     setExpandedTaskId(id_penugasan);
 
+    // Cek cache: Jika data SUDAH ada (dari preload), tidak perlu fetch lagi
     if (!membersCache[id_penugasan]) {
+      // Fallback: Jika ternyata kosong, baru fetch manual (opsional)
       setLoadingMembers(true);
       try {
         const token = getToken();
@@ -84,7 +117,8 @@ const Penugasan = () => {
         });
         setMembersCache(prev => ({ ...prev, [id_penugasan]: res.data }));
       } catch (err) {
-        console.error("Gagal ambil anggota:", err);
+        // Jika 404/kosong, set array kosong agar loading stop
+        setMembersCache(prev => ({ ...prev, [id_penugasan]: [] }));
       } finally {
         setLoadingMembers(false);
       }
@@ -143,6 +177,7 @@ const Penugasan = () => {
       }
       alert(msg);
       fetchPenugasan(); 
+      // Reset cache agar data baru termuat
       setMembersCache({}); 
 
     } catch (err) {
@@ -212,7 +247,9 @@ const Penugasan = () => {
               <div className="divide-y divide-gray-100">
                 {subItems.map((task) => {
                   const isOpen = expandedTaskId === task.id_penugasan;
+                  // Ambil data dari cache yang sudah di-preload
                   const members = membersCache[task.id_penugasan] || [];
+                  const membersCount = members.length;
                   
                   return (
                     <div key={task.id_penugasan} className="group">
@@ -240,14 +277,14 @@ const Penugasan = () => {
                             <span className="flex items-center gap-1">
                               👤 Pengawas: <span className="font-medium text-gray-700">{task.nama_pengawas}</span>
                             </span>
-                            {/* KUOTA DIHAPUS DARI SINI */}
                           </div>
                         </div>
 
+                        {/* DISINI PERUBAHANNYA: Menggunakan membersCount langsung tanpa tanda tanya */}
                         <div className="text-xs font-medium text-gray-400 group-hover:text-[#1A2A80] transition-colors flex items-center gap-2 min-w-fit">
                            {isOpen ? 'Tutup Detail' : (
                                <>
-                                 <FaUsers /> {membersCache[task.id_penugasan] ? members.length : '?'} Anggota
+                                 <FaUsers /> {membersCount} Anggota
                                </>
                            )}
                         </div>
@@ -275,14 +312,19 @@ const Penugasan = () => {
                                </div>
                              ) : (
                                <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                 {members.map(m => (
-                                   <li key={m.id_mitra} className="flex items-center gap-3 bg-white px-3 py-2.5 rounded-lg border border-gray-200 shadow-sm">
+                                 {members.map((m, idx) => (
+                                   // Gunakan m.id_mitra atau kombinasi index sebagai key
+                                   <li key={m.id_mitra || idx} className="flex items-center gap-3 bg-white px-3 py-2.5 rounded-lg border border-gray-200 shadow-sm">
                                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-xs font-bold">
-                                        {m.nama_lengkap.charAt(0)}
+                                        {m.nama_lengkap ? m.nama_lengkap.charAt(0) : '?'}
                                      </div>
                                      <div className="overflow-hidden">
-                                        <p className="text-gray-700 font-bold text-xs truncate">{m.nama_lengkap}</p>
-                                        <p className="text-xs text-gray-400 truncate">{m.nama_jabatan}</p>
+                                        <p className="text-gray-700 font-bold text-xs truncate">
+                                            {m.nama_lengkap || m.nama_mitra || 'Nama Tidak Tersedia'}
+                                        </p>
+                                        <p className="text-xs text-gray-400 truncate">
+                                            {m.nama_jabatan || '-'}
+                                        </p>
                                      </div>
                                    </li>
                                  ))}

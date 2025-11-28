@@ -1,10 +1,9 @@
-// src/pages/admin/EditKegiatan.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import PartSubKegiatan from '../../components/admin/PartSubKegiatan';
-import { FaArrowLeft, FaSave, FaPlus, FaCheck, FaArrowRight, FaLayerGroup } from 'react-icons/fa';
+import { FaArrowLeft, FaCheck, FaArrowRight, FaLayerGroup, FaPlus } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -12,26 +11,20 @@ const EditKegiatan = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   
-  // --- STATE CONTROL ---
   const [step, setStep] = useState(1); 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // --- DATA STATE ---
-  // Data Step 1 (Induk)
   const [indukData, setIndukData] = useState({
     nama_kegiatan: '', 
     deskripsi: ''
   });
 
-  // Data Step 2 (Array Sub Kegiatan & Honor)
   const [subKegiatans, setSubKegiatans] = useState([]);
 
-  // State untuk melacak ID asli (guna keperluan penghapusan)
   const [originalSubIds, setOriginalSubIds] = useState([]);
   const [originalHonorIds, setOriginalHonorIds] = useState([]);
 
-  // --- 1. FETCH DATA EXISTING ---
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -39,25 +32,21 @@ const EditKegiatan = () => {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
 
-        // A. Ambil Data Induk, Sub, dan Honorarium sekaligus
         const [resInduk, resSub, resHonor] = await Promise.all([
           axios.get(`${API_URL}/api/kegiatan/${id}`, { headers }),
           axios.get(`${API_URL}/api/subkegiatan/kegiatan/${id}`, { headers }),
-          axios.get(`${API_URL}/api/honorarium`, { headers }) // Ambil semua honor (nanti difilter)
+          axios.get(`${API_URL}/api/honorarium`, { headers }) 
         ]);
 
-        // B. Set Data Induk
         setIndukData({
           nama_kegiatan: resInduk.data.nama_kegiatan,
           deskripsi: resInduk.data.deskripsi || ''
         });
 
-        // C. Mapping Data Sub Kegiatan & Honor
         const allHonors = resHonor.data;
         const mappedSubs = resSub.data.map(sub => {
-          // Filter honor yang milik sub kegiatan ini
           const myHonors = allHonors.filter(h => h.id_subkegiatan === sub.id).map(h => ({
-            id: h.id_honorarium, // ID Asli dari DB
+            id: h.id_honorarium, 
             kode_jabatan: h.kode_jabatan,
             tarif: Number(h.tarif),
             id_satuan: h.id_satuan,
@@ -65,7 +54,7 @@ const EditKegiatan = () => {
           }));
 
           return {
-            id: sub.id, // ID Asli dari DB (misal: 'sub1')
+            id: sub.id, 
             nama_sub_kegiatan: sub.nama_sub_kegiatan,
             deskripsi: sub.deskripsi || '',
             periode: sub.periode || '',
@@ -79,7 +68,6 @@ const EditKegiatan = () => {
 
         setSubKegiatans(mappedSubs);
 
-        // D. Simpan ID Asli untuk pelacakan hapus
         setOriginalSubIds(mappedSubs.map(s => s.id));
         
         const allHonorIds = [];
@@ -97,7 +85,6 @@ const EditKegiatan = () => {
     if (id) fetchData();
   }, [id]);
 
-  // --- HANDLERS STEP 1 ---
   const handleNextStep = () => {
     if (!indukData.nama_kegiatan) {
         return Swal.fire('Validasi Gagal', 'Nama Kegiatan wajib diisi', 'warning');
@@ -106,10 +93,9 @@ const EditKegiatan = () => {
     window.scrollTo(0, 0);
   };
 
-  // --- HANDLERS STEP 2 ---
   const addSubCard = () => {
     setSubKegiatans([...subKegiatans, { 
-      id: Date.now(), // ID Sementara (Number)
+      id: Date.now(), 
       nama_sub_kegiatan: '', 
       deskripsi: '', 
       periode: '', 
@@ -121,9 +107,7 @@ const EditKegiatan = () => {
     }]);
   };
 
-  // --- FINAL SAVE (LOGIKA CRUD CERDAS) ---
   const handleFinalSubmit = async () => {
-    // 1. Validasi Frontend
     for (const sub of subKegiatans) {
       if (!sub.nama_sub_kegiatan) return Swal.fire('Gagal', 'Nama Sub Kegiatan tidak boleh kosong.', 'error');
       for (const h of sub.honorList) {
@@ -137,25 +121,35 @@ const EditKegiatan = () => {
     const config = { headers: { Authorization: `Bearer ${token}` } };
 
     try {
-      // A. UPDATE KEGIATAN INDUK
-      await axios.put(`${API_URL}/api/kegiatan/${id}`, indukData, config);
-
-      // B. KELOLA SUB KEGIATAN (Create / Update / Delete)
+      const finalHonorIds = [];
+      subKegiatans.forEach(s => s.honorList.forEach(h => {
+          if(typeof h.id !== 'number') finalHonorIds.push(h.id);
+      }));
       
-      // B1. Hapus Sub Kegiatan yang hilang dari UI
+      const honorsToDelete = originalHonorIds.filter(oldId => !finalHonorIds.includes(oldId));
+      
+      if (honorsToDelete.length > 0) {
+          await Promise.all(honorsToDelete.map(hId => 
+              axios.delete(`${API_URL}/api/honorarium/${hId}`, config)
+          ));
+      }
+
       const currentSubIds = subKegiatans.map(s => s.id);
       const subsToDelete = originalSubIds.filter(oldId => !currentSubIds.includes(oldId));
       
-      for (const delId of subsToDelete) {
-        await axios.delete(`${API_URL}/api/subkegiatan/${delId}`, config);
+      if (subsToDelete.length > 0) {
+          await Promise.all(subsToDelete.map(delId => 
+              axios.delete(`${API_URL}/api/subkegiatan/${delId}`, config)
+          ));
       }
 
-      // B2. Loop Sub Kegiatan yang ada di UI
+      await axios.put(`${API_URL}/api/kegiatan/${id}`, indukData, config);
+
       for (const sub of subKegiatans) {
         let subId = sub.id;
         
         const payloadSub = {
-          id_kegiatan: id, // Link ke induk
+          id_kegiatan: id,
           nama_sub_kegiatan: sub.nama_sub_kegiatan,
           deskripsi: sub.deskripsi,
           periode: sub.periode,
@@ -166,61 +160,30 @@ const EditKegiatan = () => {
         };
 
         if (typeof sub.id === 'number') {
-          // ID Number = Item Baru -> POST
           const res = await axios.post(`${API_URL}/api/subkegiatan`, {
              ...payloadSub, 
-             mode_kegiatan: 'existing' // Flag untuk backend
+             mode_kegiatan: 'existing'
           }, config);
-          subId = res.data.data.id; // Ambil ID baru dari database
+          subId = res.data.data.id; 
         } else {
-          // ID String = Item Lama -> PUT (Update Info)
           await axios.put(`${API_URL}/api/subkegiatan/${subId}/info`, payloadSub, config);
         }
 
-        // C. KELOLA HONORARIUM (Create / Update / Delete) di dalam Sub ini
-        
-        // C1. Hapus Honor yang hilang (Khusus untuk sub kegiatan LAMA)
-        if (typeof sub.id !== 'number') { // Hanya cek delete jika sub bukan barang baru
-             const currentHonorIds = sub.honorList.map(h => h.id);
-             // Cari ID honor yang dulunya ada di sub ini, tapi sekarang tidak ada di honorList UI
-             // (Logic ini agak kompleks karena originalHonorIds adalah flat array. 
-             //  Cara simpel: Kita asumsikan backend tidak masalah jika kita delete by ID)
-             //  Tapi kita harus tahu honor ID mana yang milik sub ini.
-             //  *Simplifikasi:* Kita skip delete spesifik per sub, kita akan handle logic Add/Update saja.
-             //  *PENTING:* Jika user menghapus baris honor di UI, ID-nya hilang dari state. 
-             //  Kita perlu membandingkan `originalHonorIds` global dengan `currentAllHonorIds`.
-        }
-
-        // C2. Loop Honorarium UI
         for (const h of sub.honorList) {
           const payloadHonor = {
-            id_subkegiatan: subId, // Gunakan subId yang pasti (entah baru/lama)
+            id_subkegiatan: subId, 
             kode_jabatan: h.kode_jabatan,
             tarif: h.tarif,
-            id_satuan: h.id_satuan,
-            basis_volume: h.basis_volume
+            id_satuan: h.id_satuan || 1, 
+            basis_volume: h.basis_volume || 1
           };
 
           if (typeof h.id === 'number') {
-            // ID Number (Timestamp) = Baru -> POST
             await axios.post(`${API_URL}/api/honorarium`, payloadHonor, config);
           } else {
-            // ID Asli DB = Lama -> PUT
             await axios.put(`${API_URL}/api/honorarium/${h.id}`, payloadHonor, config);
           }
         }
-      }
-
-      // C3. Global Honor Deletion Check (Pembersihan)
-      // Kumpulkan semua ID honor yang ada di UI sekarang
-      const finalHonorIds = [];
-      subKegiatans.forEach(s => s.honorList.forEach(h => {
-          if(typeof h.id !== 'number') finalHonorIds.push(h.id);
-      }));
-      
-      const honorsToDelete = originalHonorIds.filter(oldId => !finalHonorIds.includes(oldId));
-      for (const hId of honorsToDelete) {
-          await axios.delete(`${API_URL}/api/honorarium/${hId}`, config);
       }
 
       Swal.fire({
@@ -235,7 +198,8 @@ const EditKegiatan = () => {
 
     } catch (err) {
       console.error(err);
-      Swal.fire('Gagal', err.response?.data?.message || 'Terjadi kesalahan saat menyimpan.', 'error');
+      const msg = err.response?.data?.error || err.response?.data?.message || 'Terjadi kesalahan saat menyimpan.';
+      Swal.fire('Gagal', msg, 'error');
     } finally {
       setSaving(false);
     }
@@ -246,7 +210,6 @@ const EditKegiatan = () => {
   return (
     <div className="max-w-5xl mx-auto pb-20">
       
-      {/* HEADER NAVIGASI */}
       <div className="flex items-center gap-4 mb-8">
         <Link to="/admin/manage-kegiatan" className="text-gray-500 hover:text-[#1A2A80] transition">
           <FaArrowLeft size={20} />
@@ -261,7 +224,6 @@ const EditKegiatan = () => {
         </div>
       </div>
 
-      {/* --- STEP 1: EDIT INDUK --- */}
       {step === 1 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 animate-fade-in-up">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
@@ -304,7 +266,6 @@ const EditKegiatan = () => {
         </div>
       )}
 
-      {/* --- STEP 2: EDIT SUB KEGIATAN & HONOR --- */}
       {step === 2 && (
         <div className="animate-fade-in-up">
           

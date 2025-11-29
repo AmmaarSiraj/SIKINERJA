@@ -2,7 +2,6 @@ const { pool } = require('../config/db');
 const XLSX = require('xlsx');
 const fs = require('fs');
 
-// UPDATE: Query simpel tanpa JOIN karena tabel jabatan/user relasinya sudah diputus
 const selectQuery = `SELECT * FROM mitra`;
 
 exports.createMitra = async (req, res) => {
@@ -13,8 +12,7 @@ exports.createMitra = async (req, res) => {
         no_hp,
         email,
         no_rekening,
-        nama_bank,
-        batas_honor_bulanan
+        nama_bank
     } = req.body;
 
     if (!nama_lengkap || !nik || !alamat || !no_hp || !no_rekening || !nama_bank) {
@@ -23,8 +21,8 @@ exports.createMitra = async (req, res) => {
 
     try {
         const sql = `
-            INSERT INTO mitra (nama_lengkap, nik, alamat, no_hp, email, no_rekening, nama_bank, batas_honor_bulanan) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO mitra (nama_lengkap, nik, alamat, no_hp, email, no_rekening, nama_bank) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
         
         const [result] = await pool.query(sql, [
@@ -34,8 +32,7 @@ exports.createMitra = async (req, res) => {
             no_hp,
             email,
             no_rekening,
-            nama_bank,
-            batas_honor_bulanan || 0.00
+            nama_bank
         ]);
 
         const [rows] = await pool.query(`${selectQuery} WHERE id = ?`, [result.insertId]);
@@ -76,7 +73,7 @@ exports.updateMitra = async (req, res) => {
     const { id } = req.params;
     const {
         nama_lengkap, nik, alamat, no_hp, email, 
-        no_rekening, nama_bank, batas_honor_bulanan
+        no_rekening, nama_bank
     } = req.body;
 
     const updates = {};
@@ -87,7 +84,6 @@ exports.updateMitra = async (req, res) => {
     if (email !== undefined) updates.email = email; 
     if (no_rekening) updates.no_rekening = no_rekening;
     if (nama_bank) updates.nama_bank = nama_bank;
-    if (batas_honor_bulanan !== undefined) updates.batas_honor_bulanan = batas_honor_bulanan;
 
     if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Tidak ada data update.' });
 
@@ -130,11 +126,7 @@ exports.importMitra = async (req, res) => {
       return res.status(400).json({ message: 'File Excel kosong.' });
     }
 
-    console.log(`[IMPORT START] Membaca ${data.length} baris data...`);
-
     const connection = await pool.getConnection();
-    // KITA HAPUS transaction global agar data yang sukses tetap masuk satu per satu
-    // atau jika ingin partial success (yang sukses masuk, yang gagal dilewati)
     
     let successCount = 0;
     let failCount = 0;
@@ -142,9 +134,8 @@ exports.importMitra = async (req, res) => {
     let errors = [];
 
     for (const [index, row] of data.entries()) {
-      const rowNumber = index + 2; // Baris di Excel (Header = 1)
+      const rowNumber = index + 2;
 
-      // 1. Normalisasi Header (Hapus spasi di nama kolom)
       const cleanRow = {};
       Object.keys(row).forEach(key => {
         cleanRow[key.trim()] = row[key];
@@ -154,29 +145,23 @@ exports.importMitra = async (req, res) => {
       const nikRaw = cleanRow['NIK'];
       const nik = nikRaw ? String(nikRaw).trim() : '';
 
-      // Cek data kosong
       if (!nama || !nik) {
-          console.log(`Row ${rowNumber}: SKIP (Nama/NIK kosong)`);
           skipCount++;
-          continue; // Lanjut ke baris berikutnya
+          continue;
       }
 
       try {
-         // 2. Cek Duplikasi NIK
          const [exist] = await connection.query('SELECT id FROM mitra WHERE nik = ?', [nik]);
          
          if (exist.length > 0) {
-             console.log(`Row ${rowNumber}: SKIP (NIK ${nik} sudah ada)`);
              skipCount++;
              continue;
          }
 
-         // 3. Insert Data
-         // Gunakan try-catch DI SINI agar kalau gagal, loop tidak mati
          await connection.query(`
             INSERT INTO mitra 
-            (nama_lengkap, nik, alamat, no_hp, email, nama_bank, no_rekening, batas_honor_bulanan)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (nama_lengkap, nik, alamat, no_hp, email, nama_bank, no_rekening)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
          `, [
            nama,
            nik,
@@ -184,16 +169,12 @@ exports.importMitra = async (req, res) => {
            cleanRow['No HP'] || cleanRow['Kontak'] || '',
            cleanRow['Email'] || '',
            cleanRow['Bank'] || '',
-           cleanRow['No Rekening'] || cleanRow['Rekening'] || '',
-           cleanRow['Batas Honor'] || cleanRow['Batas Honor Bulanan'] || 0
+           cleanRow['No Rekening'] || cleanRow['Rekening'] || ''
          ]);
          
-         console.log(`Row ${rowNumber}: SUKSES - ${nama}`);
          successCount++;
 
       } catch (rowError) {
-         // INI KUNCINYA: Tangkap error per baris, catat, dan biarkan loop lanjut
-         console.error(`Row ${rowNumber}: GAGAL - ${rowError.message}`);
          failCount++;
          errors.push(`Baris ${rowNumber} (${nama}): ${rowError.message}`);
       }
@@ -202,14 +183,13 @@ exports.importMitra = async (req, res) => {
     connection.release();
     fs.unlinkSync(req.file.path);
 
-    // Kirim laporan lengkap ke frontend
     res.json({ 
         message: `Proses Selesai. Sukses: ${successCount}, Gagal: ${failCount}, Skip: ${skipCount}`,
-        details: errors // Frontend bisa menampilkan ini jika perlu
+        details: errors
     });
 
   } catch (error) {
-    console.error("[IMPORT FATAL ERROR]", error);
+    console.error(error);
     if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); 
     res.status(500).json({ message: 'Terjadi kesalahan fatal saat import.' });
   }

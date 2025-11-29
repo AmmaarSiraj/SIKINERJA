@@ -19,6 +19,7 @@ const pengajuanMitraRoutes = require('./routes/pengajuanMitraRoutes');
 const laporanFormRoutes = require('./routes/laporanFormRoutes');
 const jabatanMitraRoutes = require('./routes/jabatanMitraRoutes');
 const satuanRoutes = require('./routes/satuanRoutes');
+const aturanPeriodeRoutes = require('./routes/aturanPeriodeRoutes');
 
 app.use('/api/users', userRoutes);
 app.use('/api/kegiatan', kegiatanRoutes);
@@ -31,6 +32,7 @@ app.use('/api/pengajuan-mitra', pengajuanMitraRoutes);
 app.use('/api/laporan-form', laporanFormRoutes);
 app.use('/api/jabatan-mitra', jabatanMitraRoutes);
 app.use('/api/satuan', satuanRoutes);
+app.use('/api/aturan-periode', aturanPeriodeRoutes);
 app.get('/', (req, res) => {
   res.json({ message: 'Backend is running 🚀' });
 });

@@ -4,14 +4,8 @@ import axios from 'axios';
 import Swal from 'sweetalert2';
 import PopupTambahAnggota from '../../components/admin/PopupTambahAnggota';
 import { 
-  FaArrowLeft, 
-  FaTrash, 
-  FaPlus, 
-  FaUserTie, 
-  FaChartPie, 
-  FaClipboardList, 
-  FaExclamationTriangle,
-  FaMoneyBillWave
+  FaArrowLeft, FaTrash, FaPlus, FaUserTie, FaChartPie, 
+  FaClipboardList, FaExclamationTriangle, FaMoneyBillWave
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -23,7 +17,7 @@ const DetailPenugasan = () => {
   
   const [penugasan, setPenugasan] = useState(null);
   const [anggota, setAnggota] = useState([]);
-  const [listHonorarium, setListHonorarium] = useState([]); // State untuk menyimpan data master honor
+  const [listHonorarium, setListHonorarium] = useState([]); 
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -37,7 +31,6 @@ const DetailPenugasan = () => {
       const token = getToken();
       const config = { headers: { Authorization: `Bearer ${token}` } };
 
-      // Ambil 3 Data sekaligus: Detail Penugasan, Daftar Anggota, dan Master Honorarium
       const [penugasanRes, anggotaRes, honorRes] = await Promise.all([
         axios.get(`${API_URL}/api/penugasan/${id}`, config),
         axios.get(`${API_URL}/api/penugasan/${id}/anggota`, config),
@@ -60,17 +53,12 @@ const DetailPenugasan = () => {
     fetchDetailData();
   }, [id]);
 
-  // --- LOGIKA PENCARIAN HONOR (FIX NaN) ---
   const getHonorValue = (kodeJabatan) => {
     if (!penugasan || !kodeJabatan) return 0;
-
-    // Cari honor yang cocok dengan Sub Kegiatan ini DAN Jabatan anggota tersebut
     const match = listHonorarium.find(h => 
-      // Gunakan '==' untuk perbandingan longgar (antisipasi string vs number)
       h.id_subkegiatan == penugasan.id_subkegiatan && 
       h.kode_jabatan === kodeJabatan
     );
-
     return match ? Number(match.tarif) : 0;
   };
 
@@ -131,7 +119,6 @@ const DetailPenugasan = () => {
   };
 
   const formatRupiah = (num) => {
-    // Pastikan input adalah number, jika tidak valid (NaN/null), return Rp 0
     const value = Number(num);
     if (isNaN(value)) return 'Rp 0';
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
@@ -145,7 +132,6 @@ const DetailPenugasan = () => {
     <>
       <div className="w-full space-y-6">
         
-        {/* Header Navigasi */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <Link 
@@ -171,7 +157,6 @@ const DetailPenugasan = () => {
           </button>
         </div>
 
-        {/* --- KARTU INFO --- */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="flex items-start gap-4">
@@ -201,7 +186,6 @@ const DetailPenugasan = () => {
           </div>
         </div>
 
-        {/* --- TABEL ANGGOTA --- */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
             <h3 className="font-bold text-gray-800">Daftar Anggota Lapangan</h3>
@@ -235,12 +219,10 @@ const DetailPenugasan = () => {
                   </tr>
                 ) : (
                   anggota.map((item) => {
-                    // Hitung honor di sini
                     const honorValue = getHonorValue(item.kode_jabatan);
 
                     return (
                       <tr key={item.id_kelompok} className="hover:bg-blue-50/30 transition-colors">
-                        {/* KOLOM NAMA MITRA */}
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-[#1A2A80] font-bold text-xs">
@@ -253,7 +235,6 @@ const DetailPenugasan = () => {
                           </div>
                         </td>
 
-                        {/* KOLOM JABATAN */}
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                             {item.nama_jabatan}
@@ -263,7 +244,6 @@ const DetailPenugasan = () => {
                           )}
                         </td>
 
-                        {/* KOLOM HONOR */}
                         <td className="px-6 py-4 whitespace-nowrap">
                            <div className="text-sm font-bold text-green-600 flex items-center gap-1">
                              <FaMoneyBillWave size={12} className="text-green-500" />
@@ -271,7 +251,6 @@ const DetailPenugasan = () => {
                            </div>
                         </td>
 
-                        {/* KOLOM AKSI */}
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                           <button 
                             onClick={() => handleRemoveAnggota(item.id_kelompok, item.nama_lengkap)}
@@ -290,7 +269,6 @@ const DetailPenugasan = () => {
         </div>
       </div>
 
-      {/* POPUP ADD MEMBER */}
       <PopupTambahAnggota
         isOpen={isPopupOpen}
         onClose={() => setIsPopupOpen(false)}

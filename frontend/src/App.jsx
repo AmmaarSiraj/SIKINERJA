@@ -28,6 +28,7 @@ import DetailKegiatanUser from './pages/DetailKegiatanUser';
 import DetailMitra from './pages/admin/DetailMitra';
 import TemplatePenugasan from './pages/admin/TemplatePenugasan';
 import ManajemenJabatan from './pages/admin/ManajemenJabatan';
+import AddMitra from './pages/admin/AddMitra';
 
 // Import Layout
 import Layout from './layouts/Layout';
@@ -63,7 +64,7 @@ function AppRoutes() {
           <Route path="/admin/manage-kegiatan/edit/:id" element={<EditKegiatan />} />
           <Route path="/admin/manage-kegiatan/detail/:id" element={<DetailKegiatan />} />
           <Route path="/admin/penugasan/preview" element={<TemplatePenugasan />} />
-          
+          <Route path="/admin/mitra/tambah" element={<AddMitra />} />
           {/* --- Manajemen Penugasan --- */}
           <Route path="/admin/penugasan" element={<Penugasan />} />
           {/* --- 2. RUTE BARU DITAMBAHKAN DI SINI --- */}

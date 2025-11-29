@@ -1,8 +1,7 @@
-// src/controllers/kelompokPenugasanController.js
 const { pool } = require('../config/db');
 
 exports.addMitraToPenugasan = async (req, res) => {
-  const { id_penugasan, id_mitra } = req.body;
+  const { id_penugasan, id_mitra, kode_jabatan } = req.body;
 
   if (!id_penugasan || !id_mitra) {
     return res.status(400).json({ error: 'ID Penugasan dan ID Mitra wajib diisi.' });
@@ -11,23 +10,63 @@ exports.addMitraToPenugasan = async (req, res) => {
   let connection;
   try {
     connection = await pool.getConnection();
-    // Tidak perlu transaction kompleks hanya untuk 1 insert, tapi tetap kita pakai untuk konsistensi jika nanti ada tambahan logic
     await connection.beginTransaction();
 
-    // Hapus pengecekan kuota (jumlah_max_mitra sudah didrop)
+    const [penugasanInfo] = await connection.query(`
+        SELECT p.id, s.id AS id_subkegiatan, s.periode 
+        FROM penugasan p
+        JOIN subkegiatan s ON p.id_subkegiatan = s.id
+        WHERE p.id = ?
+    `, [id_penugasan]);
+
+    if (penugasanInfo.length === 0) throw new Error('Penugasan tidak ditemukan.');
+    const { periode, id_subkegiatan } = penugasanInfo[0];
+
+    const [rule] = await connection.query(
+        'SELECT batas_honor FROM aturan_periode WHERE periode = ?', 
+        [periode]
+    );
     
-    const sql = 'INSERT INTO kelompok_penugasan (id_penugasan, id_mitra) VALUES (?, ?)';
-    const [result] = await connection.query(sql, [id_penugasan, id_mitra]);
+    if (rule.length === 0) {
+        throw new Error(`Belum ada aturan batas honor untuk periode ${periode}. Hubungi Admin.`);
+    }
+    const LIMIT_PERIODE = Number(rule[0].batas_honor);
+
+    let newHonor = 0;
+    if (kode_jabatan) {
+        const [tarifRows] = await connection.query(
+            'SELECT tarif FROM honorarium WHERE id_subkegiatan = ? AND kode_jabatan = ?',
+            [id_subkegiatan, kode_jabatan]
+        );
+        if (tarifRows.length > 0) newHonor = Number(tarifRows[0].tarif);
+    }
+
+    const [histori] = await connection.query(`
+        SELECT SUM(h.tarif) as total_pendapatan
+        FROM kelompok_penugasan kp
+        JOIN penugasan p ON kp.id_penugasan = p.id
+        JOIN subkegiatan s ON p.id_subkegiatan = s.id
+        JOIN honorarium h ON (h.id_subkegiatan = s.id AND h.kode_jabatan = kp.kode_jabatan)
+        WHERE kp.id_mitra = ? AND s.periode = ?
+    `, [id_mitra, periode]);
+
+    const currentTotal = Number(histori[0].total_pendapatan || 0);
+
+    if ((currentTotal + newHonor) > LIMIT_PERIODE) {
+        const formatRupiah = (n) => 'Rp ' + n.toLocaleString('id-ID');
+        throw new Error(
+            `Gagal! Total honor mitra akan menjadi ${formatRupiah(currentTotal + newHonor)}, melebihi batas periode ${periode} sebesar ${formatRupiah(LIMIT_PERIODE)}.`
+        );
+    }
+
+    const sql = 'INSERT INTO kelompok_penugasan (id_penugasan, id_mitra, kode_jabatan) VALUES (?, ?, ?)';
+    const [result] = await connection.query(sql, [id_penugasan, id_mitra, kode_jabatan || null]);
     
     await connection.commit();
 
-    const [newRows] = await connection.query(
-      'SELECT * FROM kelompok_penugasan WHERE id = ?',
-       [result.insertId]
-    );
-    
+    const [newRows] = await connection.query('SELECT * FROM kelompok_penugasan WHERE id = ?', [result.insertId]);
     res.status(201).json({
-      message: 'Mitra berhasil ditambahkan ke penugasan',
+      message: 'Mitra berhasil ditambahkan.',
       data: newRows[0],
     });
 
@@ -37,8 +76,7 @@ exports.addMitraToPenugasan = async (req, res) => {
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'Mitra ini sudah ada di dalam penugasan tersebut.' });
     }
-    console.error(error);
-    res.status(500).json({ error: 'Terjadi kesalahan pada server.', details: error.message });
+    res.status(400).json({ error: error.message });
   } finally {
     if (connection) connection.release();
   }
@@ -46,7 +84,6 @@ exports.addMitraToPenugasan = async (req, res) => {
 
 exports.removeMitraFromPenugasan = async (req, res) => {
   const { id } = req.params;
-
   try {
     const [result] = await pool.query('DELETE FROM kelompok_penugasan WHERE id = ?', [id]);
     
@@ -71,7 +108,8 @@ exports.getAllKelompokPenugasan = async (req, res) => {
           k.nama_kegiatan,
           u.username AS nama_pengawas,
           m.id AS id_mitra,
-          m.nama_lengkap AS nama_mitra
+          m.nama_lengkap AS nama_mitra,
+          kp.kode_jabatan
         FROM kelompok_penugasan AS kp
         JOIN penugasan AS p ON kp.id_penugasan = p.id
         JOIN subkegiatan AS s ON p.id_subkegiatan = s.id

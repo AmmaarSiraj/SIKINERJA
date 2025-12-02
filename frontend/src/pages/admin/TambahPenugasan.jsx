@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { 
   FaArrowRight, FaArrowLeft, FaCheck, FaClipboardList, 
-  FaUserTie, FaIdCard, FaSearch, FaTimes, FaUsers, FaMoneyBillWave 
+  FaUserTie, FaIdCard, FaSearch, FaTimes, FaUsers, FaMoneyBillWave,
+  FaExclamationCircle 
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -15,38 +16,54 @@ const TambahPenugasan = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // --- DATA MASTER ---
+  // Data Master
   const [listKegiatan, setListKegiatan] = useState([]);
   const [listSubKegiatan, setListSubKegiatan] = useState([]); 
+  const [allSubKegiatan, setAllSubKegiatan] = useState([]); 
   const [listMitra, setListMitra] = useState([]);
   const [listHonorarium, setListHonorarium] = useState([]); 
+  const [listAturan, setListAturan] = useState([]);
+  const [listKelompok, setListKelompok] = useState([]);
+  const [listPenugasan, setListPenugasan] = useState([]);
 
-  // --- FORM STATE ---
+  // Form State
   const [selectedKegiatanId, setSelectedKegiatanId] = useState('');
   const [selectedSubId, setSelectedSubId] = useState('');
   
-  // State untuk menampung mitra yang dipilih beserta jabatannya
   const [selectedMitras, setSelectedMitras] = useState([]); 
   
   const [mitraSearch, setMitraSearch] = useState('');
   const [showMitraDropdown, setShowMitraDropdown] = useState(false);
 
-  // 1. FETCH DATA AWAL (Kegiatan, Mitra, Honor)
+  // Finance State
+  const [batasHonorPeriode, setBatasHonorPeriode] = useState(0);
+  const [mitraIncomeMap, setMitraIncomeMap] = useState({});
+
+  // 1. FETCH DATA MASTER
   useEffect(() => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [resKeg, resMitra, resHonor] = await Promise.all([
+        const [resKeg, resMitra, resHonor, resAturan, resKelompok, resPenugasan, resAllSub] = await Promise.all([
           axios.get(`${API_URL}/api/kegiatan`, { headers }),
           axios.get(`${API_URL}/api/mitra`, { headers }),
-          axios.get(`${API_URL}/api/honorarium`, { headers }) 
+          axios.get(`${API_URL}/api/honorarium`, { headers }),
+          axios.get(`${API_URL}/api/aturan-periode`, { headers }),
+          axios.get(`${API_URL}/api/kelompok-penugasan`, { headers }),
+          axios.get(`${API_URL}/api/penugasan`, { headers }),
+          axios.get(`${API_URL}/api/subkegiatan`, { headers })
         ]);
 
         setListKegiatan(resKeg.data);
         setListMitra(resMitra.data);
         setListHonorarium(resHonor.data);
+        setListAturan(resAturan.data);
+        setListKelompok(resKelompok.data);
+        setListPenugasan(resPenugasan.data);
+        setAllSubKegiatan(resAllSub.data);
+
       } catch (err) {
         console.error(err);
         Swal.fire('Error', 'Gagal memuat data master', 'error');
@@ -57,37 +74,83 @@ const TambahPenugasan = () => {
     fetchData();
   }, []);
 
-  // 2. FETCH SUB KEGIATAN DINAMIS (Berdasarkan Kegiatan yg dipilih)
+  // 2. FILTER SUB KEGIATAN
   useEffect(() => {
-    const fetchSub = async () => {
-      if (!selectedKegiatanId) {
-        setListSubKegiatan([]);
-        return;
-      }
-      try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get(`${API_URL}/api/subkegiatan/kegiatan/${selectedKegiatanId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setListSubKegiatan(res.data);
-      } catch (err) {
-        console.error("Gagal ambil sub kegiatan", err);
-      }
+    const fetchSubDropdown = async () => {
+        if (!selectedKegiatanId) {
+            setListSubKegiatan([]);
+            return;
+        }
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${API_URL}/api/subkegiatan/kegiatan/${selectedKegiatanId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setListSubKegiatan(res.data);
+        } catch (err) {
+            console.error("Gagal load sub kegiatan:", err);
+        }
     };
-    fetchSub();
+    fetchSubDropdown();
   }, [selectedKegiatanId]);
 
-  // --- HELPERS ---
+  // 3. HITUNG PENDAPATAN & LIMIT
+  useEffect(() => {
+    if (!selectedSubId) {
+      setBatasHonorPeriode(0);
+      setMitraIncomeMap({});
+      return;
+    }
+
+    const subInfo = listSubKegiatan.find(s => s.id === selectedSubId);
+    if (!subInfo || !subInfo.periode) return;
+    
+    const periode = subInfo.periode;
+    const aturan = listAturan.find(r => r.periode === periode);
+    setBatasHonorPeriode(aturan ? Number(aturan.batas_honor) : 0);
+
+    const incomeMap = {};
+    
+    listKelompok.forEach(k => {
+      const penugasan = listPenugasan.find(p => p.id_penugasan === k.id_penugasan);
+      if (!penugasan) return;
+      
+      const sub = allSubKegiatan.find(s => s.id === penugasan.id_subkegiatan);
+      if (!sub || sub.periode !== periode) return;
+
+      const honor = listHonorarium.find(h => h.id_subkegiatan === sub.id && h.kode_jabatan === k.kode_jabatan);
+      const tarif = honor ? Number(honor.tarif) : 0;
+
+      const mId = String(k.id_mitra);
+      incomeMap[mId] = (incomeMap[mId] || 0) + tarif;
+    });
+
+    setMitraIncomeMap(incomeMap);
+
+  }, [selectedSubId, listSubKegiatan, listAturan, listKelompok, listPenugasan, allSubKegiatan, listHonorarium]);
+
+  // 4. FILTER MITRA SUDAH BERTUGAS
+  const unavailableMitraIds = useMemo(() => {
+    if (!selectedSubId) return new Set();
+
+    const relatedPenugasanIds = listPenugasan
+      .filter(p => String(p.id_subkegiatan) === String(selectedSubId))
+      .map(p => p.id_penugasan);
+
+    const assignedIds = listKelompok
+      .filter(k => relatedPenugasanIds.includes(k.id_penugasan))
+      .map(k => String(k.id_mitra));
+
+    return new Set(assignedIds);
+  }, [selectedSubId, listPenugasan, listKelompok]);
+
   const formatRupiah = (num) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
   };
 
-  // Filter jabatan yang tersedia untuk sub kegiatan ini
   const availableJabatan = listHonorarium.filter(
     h => h.id_subkegiatan === selectedSubId
   );
-
-  // --- HANDLERS ---
 
   const handleNextStep = () => {
     if (!selectedKegiatanId || !selectedSubId) {
@@ -97,13 +160,9 @@ const TambahPenugasan = () => {
     setStep(2);
   };
 
-  // Tambah mitra ke list seleksi
   const handleAddMitra = (mitra) => {
     if (selectedMitras.some(m => m.id === mitra.id)) return;
-    
-    // Default jabatan kosong saat pertama ditambah
     const defaultJabatan = ''; 
-
     setSelectedMitras([...selectedMitras, { ...mitra, assignedJabatan: defaultJabatan }]);
     setMitraSearch(''); 
     setShowMitraDropdown(false);
@@ -119,16 +178,32 @@ const TambahPenugasan = () => {
     ));
   };
 
-  // --- FINAL SUBMIT ---
+  // --- LOGIKA UTAMA PERUBAHAN ---
   const handleSubmit = async () => {
+    // 1. Validasi Dasar
     if (selectedMitras.length === 0) {
       return Swal.fire('Perhatian', 'Belum ada mitra yang dipilih.', 'warning');
     }
     
-    // Validasi: Pastikan semua mitra sudah dipilihkan jabatannya
     const incompleteMitra = selectedMitras.find(m => !m.assignedJabatan);
     if (incompleteMitra) {
       return Swal.fire('Data Belum Lengkap', `Harap pilih jabatan untuk mitra: ${incompleteMitra.nama_lengkap}`, 'warning');
+    }
+
+    // 2. Validasi Batas Honor
+    const overLimitUser = selectedMitras.find(m => {
+        const hInfo = availableJabatan.find(h => h.kode_jabatan === m.assignedJabatan);
+        const honor = hInfo ? Number(hInfo.tarif) : 0;
+        const current = mitraIncomeMap[String(m.id)] || 0;
+        return batasHonorPeriode > 0 && (current + honor) > batasHonorPeriode;
+    });
+
+    if (overLimitUser) {
+        return Swal.fire(
+            'Gagal Menyimpan', 
+            `Mitra <b>${overLimitUser.nama_lengkap}</b> melebihi batas honor periode ini. Silakan kurangi honor atau hapus dari daftar.`, 
+            'error'
+        );
     }
 
     setSubmitting(true);
@@ -137,52 +212,81 @@ const TambahPenugasan = () => {
     const headers = { Authorization: `Bearer ${token}` };
 
     try {
-      // PERUBAHAN UTAMA:
-      // Struktur payload ini sekarang akan diproses backend untuk:
-      // 1. Membuat Penugasan
-      // 2. Memasukkan Mitra ke Kelompok Penugasan beserta Kode Jabatannya
-      const payload = {
-        id_subkegiatan: selectedSubId,
-        id_pengawas: user ? user.id : 1,
-        anggota: selectedMitras.map(m => ({
-            id_mitra: m.id,
-            kode_jabatan: m.assignedJabatan // Ini yang akan masuk ke tabel kelompok_penugasan
-        }))
-      };
+      // 3. Cek apakah Penugasan (Header) untuk sub kegiatan ini sudah ada?
+      // listPenugasan memiliki properti: id_penugasan, id_subkegiatan, dll.
+      const existingPenugasan = listPenugasan.find(
+        p => String(p.id_subkegiatan) === String(selectedSubId)
+      );
 
-      await axios.post(`${API_URL}/api/penugasan`, payload, { headers });
+      if (existingPenugasan) {
+        // --- SKENARIO A: PENUGASAN SUDAH ADA ---
+        // Kita hanya perlu menambahkan mitra ke penugasan tersebut
+        const idPenugasanExist = existingPenugasan.id_penugasan;
 
-      Swal.fire({
-        title: 'Berhasil!',
-        text: 'Penugasan dan tim berhasil disimpan.',
-        icon: 'success',
-        timer: 2000,
-        showConfirmButton: false
-      }).then(() => {
-        navigate('/admin/penugasan');
-      });
+        // Kita lakukan loop request karena endpoint createPenugasan yang bulk create juga membuat header baru.
+        // Endpoint /api/kelompok-penugasan hanya menerima satu per satu (berdasarkan kode controller yang ada).
+        const promises = selectedMitras.map(m => {
+            return axios.post(`${API_URL}/api/kelompok-penugasan`, {
+                id_penugasan: idPenugasanExist,
+                id_mitra: m.id,
+                kode_jabatan: m.assignedJabatan
+            }, { headers });
+        });
+
+        await Promise.all(promises);
+
+        Swal.fire({
+            title: 'Berhasil Ditambahkan',
+            text: `Mitra berhasil ditambahkan ke penugasan yang sudah ada (ID: ${idPenugasanExist}).`,
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        }).then(() => navigate('/admin/penugasan'));
+
+      } else {
+        // --- SKENARIO B: PENUGASAN BELUM ADA (BUAT BARU) ---
+        const payload = {
+            id_subkegiatan: selectedSubId,
+            id_pengawas: user ? user.id : 1,
+            anggota: selectedMitras.map(m => ({
+                id_mitra: m.id,
+                kode_jabatan: m.assignedJabatan
+            }))
+        };
+
+        await axios.post(`${API_URL}/api/penugasan`, payload, { headers });
+
+        Swal.fire({
+            title: 'Berhasil Dibuat',
+            text: 'Penugasan baru dan tim berhasil disimpan.',
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        }).then(() => navigate('/admin/penugasan'));
+      }
 
     } catch (err) {
       console.error(err);
-      Swal.fire('Gagal', err.response?.data?.error || 'Terjadi kesalahan saat menyimpan.', 'error');
+      // Tangani error jika salah satu request gagal (misal validasi backend)
+      const msg = err.response?.data?.error || err.message || 'Terjadi kesalahan saat menyimpan.';
+      Swal.fire('Gagal', msg, 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Filter pencarian mitra di dropdown
   const filteredMitra = listMitra.filter(m => {
     const matchSearch = m.nama_lengkap.toLowerCase().includes(mitraSearch.toLowerCase()) || m.nik.includes(mitraSearch);
     const notSelected = !selectedMitras.some(selected => selected.id === m.id);
-    return matchSearch && notSelected;
+    const notAlreadyAssigned = !unavailableMitraIds.has(String(m.id));
+    return matchSearch && notSelected && notAlreadyAssigned;
   });
 
   if (loading) return <div className="text-center py-20 text-gray-500">Memuat formulir...</div>;
 
   return (
-    <div className="max-w-5xl mx-auto pb-20">
+    <div className="max-w-6xl mx-auto pb-20">
       
-      {/* HEADER WIZARD */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800">Wizard Penugasan Mitra</h1>
         <div className="flex items-center gap-2 text-sm text-gray-500 mt-2">
@@ -194,7 +298,6 @@ const TambahPenugasan = () => {
 
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden min-h-[400px] flex flex-col">
         
-        {/* --- STEP 1: PILIH KEGIATAN --- */}
         {step === 1 && (
           <div className="p-8 animate-fade-in-up flex-1 flex flex-col">
             <h2 className="text-lg font-bold text-gray-700 mb-6 flex items-center gap-2">
@@ -202,7 +305,6 @@ const TambahPenugasan = () => {
             </h2>
 
             <div className="space-y-6">
-              {/* Dropdown Kegiatan Utama */}
               <div>
                 <label className="block text-sm font-bold text-gray-600 mb-2">Pilih Kegiatan Utama</label>
                 <select 
@@ -217,7 +319,6 @@ const TambahPenugasan = () => {
                 </select>
               </div>
 
-              {/* Dropdown Sub Kegiatan */}
               <div>
                 <label className="block text-sm font-bold text-gray-600 mb-2">Pilih Sub Kegiatan</label>
                 <select 
@@ -242,22 +343,20 @@ const TambahPenugasan = () => {
           </div>
         )}
 
-        {/* --- STEP 2: MITRA & JABATAN --- */}
         {step === 2 && (
           <div className="p-8 animate-fade-in-up flex-1 flex flex-col">
             
-            {/* Info Sub Kegiatan yang dipilih */}
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-6 flex justify-between items-center">
               <div className='text-sm text-blue-800'>
                 <span className="font-bold block text-xs uppercase text-blue-400">Target Kegiatan:</span>
-                {listSubKegiatan.find(s => s.id == selectedSubId)?.nama_sub_kegiatan}
+                {allSubKegiatan.find(s => s.id === selectedSubId)?.nama_sub_kegiatan}
               </div>
               <button onClick={() => setStep(1)} className="text-xs underline hover:text-blue-600">Ubah</button>
             </div>
 
             <div className="flex flex-col md:flex-row gap-8 h-full">
               
-              {/* KOLOM KIRI: Pencarian Mitra */}
+              {/* KOLOM KIRI: PENCARIAN */}
               <div className="md:w-1/3">
                 <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase flex items-center gap-2">
                   <FaSearch /> Tambah Mitra
@@ -272,34 +371,63 @@ const TambahPenugasan = () => {
                     onFocus={() => setShowMitraDropdown(true)}
                   />
                   {showMitraDropdown && mitraSearch && (
-                    <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-80 overflow-y-auto">
                       {filteredMitra.length === 0 ? (
-                        <div className="p-3 text-sm text-gray-500">Tidak ditemukan.</div>
+                        <div className="p-3 text-sm text-gray-500">Tidak ditemukan / Sudah Bertugas.</div>
                       ) : (
-                        filteredMitra.map(m => (
-                          <div key={m.id} onClick={() => handleAddMitra(m)} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b last:border-none">
-                            <p className="text-sm font-bold text-gray-800">{m.nama_lengkap}</p>
-                            <p className="text-xs text-gray-500">{m.nik}</p>
-                          </div>
-                        ))
+                        filteredMitra.map(m => {
+                            const currentIncome = mitraIncomeMap[String(m.id)] || 0;
+                            const limit = batasHonorPeriode;
+                            const isFull = limit > 0 && currentIncome >= limit;
+                            const percent = limit > 0 ? (currentIncome / limit) * 100 : 0;
+                            
+                            let barColor = 'bg-green-500';
+                            if (percent > 50) barColor = 'bg-yellow-500';
+                            if (percent >= 90) barColor = 'bg-red-500';
+
+                            return (
+                                <div 
+                                    key={m.id} 
+                                    onClick={() => !isFull && handleAddMitra(m)} 
+                                    className={`px-4 py-3 border-b last:border-none transition cursor-pointer ${isFull ? 'bg-gray-100 opacity-60 cursor-not-allowed' : 'hover:bg-blue-50'}`}
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-800">{m.nama_lengkap}</p>
+                                            <p className="text-xs text-gray-500">{m.nik}</p>
+                                        </div>
+                                        {isFull && <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded">PENUH</span>}
+                                    </div>
+                                    
+                                    {limit > 0 && (
+                                        <div className="mt-2">
+                                            <div className="flex justify-between text-[10px] mb-1 text-gray-500">
+                                                <span>Rp {currentIncome.toLocaleString('id-ID')}</span>
+                                                <span>Batas: Rp {limit.toLocaleString('id-ID')}</span>
+                                            </div>
+                                            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                                <div className={`h-1.5 rounded-full ${barColor}`} style={{ width: `${Math.min(percent, 100)}%` }}></div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
                       )}
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-gray-400 mt-2">
-                  Cari mitra lalu klik untuk menambahkan ke daftar penugasan di sebelah kanan.
-                </p>
               </div>
 
-              {/* KOLOM KANAN: Daftar Penugasan (Mitra + Jabatan) */}
+              {/* KOLOM KANAN: DAFTAR SELEKSI */}
               <div className="md:w-2/3 bg-gray-50 rounded-xl border border-gray-200 p-5 flex flex-col">
                 <div className="flex justify-between items-center mb-4">
                    <h3 className="text-sm font-bold text-gray-700 uppercase flex items-center gap-2">
-                     <FaUsers /> Daftar Penugasan ({selectedMitras.length})
+                     <FaUsers /> Daftar Seleksi ({selectedMitras.length})
                    </h3>
                    {availableJabatan.length === 0 && (
                      <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded border border-red-100">
-                       ⚠️ Belum ada Jabatan/Honor diatur!
+                       ⚠️ Belum ada Honor!
                      </span>
                    )}
                 </div>
@@ -312,11 +440,19 @@ const TambahPenugasan = () => {
                   ) : (
                     selectedMitras.map((mitra, idx) => {
                       const honorInfo = availableJabatan.find(h => h.kode_jabatan === mitra.assignedJabatan);
+                      const honorBaru = honorInfo ? Number(honorInfo.tarif) : 0;
+                      
+                      const currentIncome = mitraIncomeMap[String(mitra.id)] || 0;
+                      const totalProjected = currentIncome + honorBaru;
+                      const limit = batasHonorPeriode;
+                      
+                      const percentCurrent = limit > 0 ? (currentIncome / limit) * 100 : 0;
+                      const percentNew = limit > 0 ? (honorBaru / limit) * 100 : 0;
+                      const isOverLimit = limit > 0 && totalProjected > limit;
 
                       return (
-                        <div key={mitra.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm relative group hover:border-blue-300 transition">
+                        <div key={mitra.id} className={`bg-white p-4 rounded-lg border shadow-sm relative group transition ${isOverLimit ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200 hover:border-blue-300'}`}>
                           
-                          {/* Baris Atas: Identitas Mitra */}
                           <div className="flex justify-between items-start gap-4">
                             <div className="flex items-center gap-3">
                                <div className="w-8 h-8 rounded-full bg-[#1A2A80] text-white flex items-center justify-center text-xs font-bold">
@@ -329,16 +465,14 @@ const TambahPenugasan = () => {
                                  </p>
                                </div>
                             </div>
-
                             <button onClick={() => handleRemoveMitra(mitra.id)} className="text-gray-300 hover:text-red-500 p-1" title="Hapus"><FaTimes /></button>
                           </div>
 
-                          {/* Baris Bawah: Pilihan Jabatan & Estimasi Honor */}
                           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-center bg-gray-50 p-3 rounded-lg">
                              <div>
                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Pilih Jabatan</label>
                                <select 
-                                 className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:ring-1 focus:ring-[#1A2A80] outline-none"
+                                 className={`w-full text-xs border rounded px-2 py-1.5 outline-none ${isOverLimit ? 'border-red-500 focus:ring-red-500 text-red-700 bg-red-50' : 'border-gray-300 focus:ring-[#1A2A80]'}`}
                                  value={mitra.assignedJabatan}
                                  onChange={(e) => handleUpdateMitraJabatan(mitra.id, e.target.value)}
                                >
@@ -347,12 +481,18 @@ const TambahPenugasan = () => {
                                    <option key={h.kode_jabatan} value={h.kode_jabatan}>{h.nama_jabatan}</option>
                                  ))}
                                </select>
+                               
+                               {isOverLimit && (
+                                 <div className="mt-1 text-[10px] text-red-600 font-bold flex items-center gap-1 animate-pulse">
+                                   <FaExclamationCircle /> Melebihi Batas!
+                                 </div>
+                               )}
                              </div>
                              
                              <div className="text-right">
                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Estimasi Honor</label>
                                {honorInfo ? (
-                                 <div className="text-sm font-bold text-green-600 flex items-center justify-end gap-1">
+                                 <div className={`text-sm font-bold flex items-center justify-end gap-1 ${isOverLimit ? 'text-red-600' : 'text-green-600'}`}>
                                    <FaMoneyBillWave size={12}/> {formatRupiah(honorInfo.tarif)}
                                  </div>
                                ) : (
@@ -360,6 +500,30 @@ const TambahPenugasan = () => {
                                )}
                              </div>
                           </div>
+
+                          {/* BAR PROGRESS (KANAN) */}
+                          {limit > 0 && (
+                            <div className="mt-3">
+                                <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                                    <span>Total Proyeksi: Rp {totalProjected.toLocaleString('id-ID')}</span>
+                                    <span>Batas: Rp {limit.toLocaleString('id-ID')}</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden flex">
+                                    {/* Bar Pendapatan Lama */}
+                                    <div 
+                                        className={`h-full ${percentCurrent > 90 ? 'bg-yellow-500' : 'bg-green-500'}`} 
+                                        style={{ width: `${Math.min(percentCurrent, 100)}%` }}
+                                        title="Pendapatan Saat Ini"
+                                    ></div>
+                                    {/* Bar Pendapatan Baru */}
+                                    <div 
+                                        className={`h-full ${isOverLimit ? 'bg-red-500' : 'bg-blue-400'}`} 
+                                        style={{ width: `${Math.min(percentNew, 100 - Math.min(percentCurrent, 100))}%` }}
+                                        title="Tambahan Honor Ini"
+                                    ></div>
+                                </div>
+                            </div>
+                          )}
 
                         </div>
                       );

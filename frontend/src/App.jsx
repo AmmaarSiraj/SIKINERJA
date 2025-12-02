@@ -29,6 +29,10 @@ import DetailMitra from './pages/admin/DetailMitra';
 import TemplatePenugasan from './pages/admin/TemplatePenugasan';
 import ManajemenJabatan from './pages/admin/ManajemenJabatan';
 import AddMitra from './pages/admin/AddMitra';
+import ManajemenSPK from './pages/admin/ManajemenSPK';
+import CetakSPK from './pages/admin/CetakSPK';
+import PenugasanUser from './pages/Penugasan';
+import MitraUser from './pages/Mitra';
 
 // Import Layout
 import Layout from './layouts/Layout';
@@ -45,11 +49,14 @@ function AppRoutes() {
         {/* Redirect /register ke / agar user diarahkan ke AuthPage */}
         <Route path="/register" element={<Navigate to="/" replace />} /> 
         <Route path="/home" element={<Home />} />
+        <Route path="/admin/spk/print/:periode/:id_mitra" element={<CetakSPK />} />
         
         {/* === Rute User Biasa (menggunakan Layout utama) === */}
         <Route element={<Layout />}>
           <Route path="/lengkapi-profil" element={<LengkapiProfile />} />
           <Route path="/kegiatan/:id" element={<DetailKegiatanUser />} />
+          <Route path="/penugasan" element={<PenugasanUser />} />
+          <Route path="/daftar-mitra" element={<MitraUser />} />
         </Route>
 
         {/* === Rute Admin (menggunakan AdminLayout) === */}
@@ -78,6 +85,7 @@ function AppRoutes() {
           <Route path="/admin/laporan/buat" element={<BuatTemplate />} />
           <Route path="/admin/mitra/:id" element={<DetailMitra />} />
           <Route path="/admin/manajemen-jabatan" element={<ManajemenJabatan />} />
+          <Route path="/admin/manajemen-spk" element={<ManajemenSPK />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -29,7 +29,7 @@ router.post('/import',
 
 // Rute CRUD Standar
 router.post('/', authMiddleware.protect, createMitra);
-router.get('/', authMiddleware.protect, authMiddleware.admin, getAllMitra);
+router.get('/', authMiddleware.protect, getAllMitra);
 router.get('/:id', authMiddleware.protect, getMitraById);
 router.put('/:id', authMiddleware.protect, authMiddleware.admin, updateMitra);
 router.delete('/:id', authMiddleware.protect, authMiddleware.admin, deleteMitra);

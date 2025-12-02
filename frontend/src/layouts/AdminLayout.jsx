@@ -10,7 +10,8 @@ import {
   FaSignOutAlt, 
   FaUserCircle, 
   FaUserCheck,
-  FaBars 
+  FaBars,
+  FaFileContract
 } from 'react-icons/fa';
 
 import logoSikinerja from '../assets/logo.png'; 
@@ -24,6 +25,7 @@ const menuItems = [
   { path: "/admin/pengajuan-mitra", label: "Manajemen Mitra", icon: <FaUserCheck /> },
   { path: "/admin/laporan", label: "Template Laporan", icon: <FaFileAlt /> },
   { path: "/admin/manajemen-jabatan", label: "Manajemen Jabatan", icon: <FaFileAlt /> },
+  { path: "/admin/manajemen-spk", label: "Manajemen SPK", icon: <FaFileContract /> },
 ];
 
 const AdminHeader = ({ title, toggleSidebar, isProfileExpanded, setIsProfileExpanded }) => {

@@ -3,8 +3,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
   FaArrowLeft, FaTrash, FaUserTie, FaIdCard, FaPhone, FaEnvelope, 
-  FaMoneyCheckAlt, FaCoins, FaBriefcase, FaCalendarAlt, FaExclamationCircle,
-  FaHistory, FaChevronDown, FaChevronUp
+  FaCoins, FaBriefcase, FaCalendarAlt, FaExclamationCircle,
+  FaHistory, FaChevronDown, FaChevronUp, FaVenusMars, FaGraduationCap, FaIdBadge
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -16,7 +16,7 @@ const DetailMitra = () => {
   const [mitra, setMitra] = useState(null);
   const [tasks, setTasks] = useState([]);
   
-  // State Keuangan
+  // State Keuangan (Kalkulasi Honor)
   const [totalPendapatan, setTotalPendapatan] = useState(0);
   const [limitPendapatan, setLimitPendapatan] = useState(0);
   const [currentPeriodLabel, setCurrentPeriodLabel] = useState('');
@@ -107,7 +107,7 @@ const DetailMitra = () => {
                     historyGroup[subInfo.periode] = { 
                         tasks: [], 
                         total: 0,
-                        limit: ruleMap[subInfo.periode] || 0 // Ambil limit dari map
+                        limit: ruleMap[subInfo.periode] || 0 
                     };
                 }
                 historyGroup[subInfo.periode].tasks.push(taskItem);
@@ -153,6 +153,14 @@ const DetailMitra = () => {
     return periodeStr;
   };
 
+  // --- Helper Baru untuk Format Gender ---
+  const formatGender = (val) => {
+    if (val === 'Lk') return 'Laki-laki';
+    if (val === 'Pr') return 'Perempuan';
+    return val || '-';
+  };
+  // -------------------------------------
+
   const getProgressColor = (percent) => {
     if (percent >= 100) return 'bg-red-600';
     if (percent >= 80) return 'bg-yellow-500';
@@ -174,50 +182,90 @@ const DetailMitra = () => {
         </Link>
       </div>
 
-      {/* CARD 1: INFORMASI PROFIL & KEUANGAN SAAT INI */}
+      {/* CARD 1: INFORMASI PROFIL & LATAR BELAKANG */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-        <div className="px-8 py-6 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
+        
+        {/* Header Profil */}
+        <div className="px-8 py-6 bg-gray-50/50 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center text-[#1A2A80] text-2xl shadow-sm border border-blue-100"><FaUserTie /></div>
+                <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center text-[#1A2A80] text-3xl shadow-sm border border-blue-100"><FaUserTie /></div>
                 <div>
                     <h1 className="text-2xl font-bold text-gray-800">{mitra.nama_lengkap}</h1>
-                    <p className="text-sm text-gray-500">{mitra.jabatan || 'Mitra Statistik'}</p>
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                        <span className="flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs font-bold">
+                            {mitra.sobat_id ? `SOBAT ID: ${mitra.sobat_id}` : 'Mitra Statistik'}
+                        </span>
+                    </div>
                 </div>
             </div>
             <div className="text-right hidden sm:block">
-                 <span className="bg-gray-200 text-gray-600 px-3 py-1 rounded text-xs font-mono font-bold">ID: {mitra.id}</span>
+                 <span className="bg-gray-200 text-gray-600 px-3 py-1 rounded text-xs font-mono font-bold">System ID: {mitra.id}</span>
             </div>
         </div>
 
-        <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
+        {/* Content Grid */}
+        <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-12">
+            
+            {/* KOLOM KIRI: Data Pribadi */}
             <div>
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-2 border-b border-gray-100 pb-2"><FaIdCard /> Data Pribadi</h3>
-                <div className="space-y-5">
-                    <div><label className="block text-xs text-gray-500 mb-1 font-medium">NIK</label><div className="text-base font-bold text-gray-800 font-mono bg-gray-50 p-2 rounded border border-dashed border-gray-200 inline-block">{mitra.nik}</div></div>
-                    <div><label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1"><FaPhone size={10}/> No. Handphone</label><p className="text-base font-medium text-gray-900">{mitra.no_hp}</p></div>
-                    <div><label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1"><FaEnvelope size={10}/> Email</label><p className="text-base font-medium text-gray-900">{mitra.email}</p></div>
-                    <div><label className="block text-xs text-gray-500 mb-1 font-medium">Alamat</label><p className="text-sm font-medium text-gray-700 leading-relaxed">{mitra.alamat}</p></div>
-                </div>
-            </div>
-
-            <div>
-                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-2 border-b border-gray-100 pb-2"><FaMoneyCheckAlt /> Informasi Keuangan</h3>
-                <div className="space-y-5">
-                    <div className="p-5 bg-blue-50 rounded-xl border border-blue-100">
-                        <div className="grid grid-cols-1 gap-4">
-                            <div><label className="block text-xs text-blue-600 mb-1 font-bold">BANK</label><p className="text-lg font-bold text-gray-800">{mitra.nama_bank}</p></div>
-                            <div><label className="block text-xs text-blue-600 mb-1 font-bold">NO. REKENING</label><p className="text-lg font-mono font-medium text-gray-800 tracking-wide">{mitra.no_rekening}</p></div>
+                <div className="space-y-4">
+                    <div className="bg-gray-50 p-3 rounded border border-dashed border-gray-200">
+                        <label className="block text-xs text-gray-500 mb-1 font-bold">NIK</label>
+                        <div className="text-base font-bold text-gray-800 font-mono tracking-wide">{mitra.nik}</div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1"><FaVenusMars size={12}/> Jenis Kelamin</label>
+                            {/* Menggunakan helper formatGender di sini */}
+                            <p className="text-sm font-medium text-gray-900">{formatGender(mitra.jenis_kelamin)}</p>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1"><FaIdBadge size={12}/> ID Sobat</label>
+                            <p className="text-sm font-medium text-gray-900">{mitra.sobat_id || '-'}</p>
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-xs text-gray-500 mb-2 font-medium flex justify-between items-center">
-                            <span className="flex items-center gap-1"><FaCoins size={10} /> Total Pendapatan ({currentPeriodLabel})</span>
-                            {limitPendapatan > 0 && <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-600 font-bold">Limit: Rp {limitPendapatan.toLocaleString('id-ID')}</span>}
+                    <div><label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1"><FaPhone size={12}/> No. Handphone</label><p className="text-base font-medium text-gray-900">{mitra.no_hp}</p></div>
+                    <div><label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1"><FaEnvelope size={12}/> Email</label><p className="text-base font-medium text-gray-900">{mitra.email || '-'}</p></div>
+                    <div><label className="block text-xs text-gray-500 mb-1 font-medium">Alamat Domisili</label><p className="text-sm font-medium text-gray-700 leading-relaxed">{mitra.alamat}</p></div>
+                </div>
+            </div>
+
+            {/* KOLOM KANAN: Latar Belakang & Status */}
+            <div>
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-2 border-b border-gray-100 pb-2"><FaBriefcase /> Latar Belakang & Performa</h3>
+                
+                <div className="space-y-6">
+                    {/* Info Pendidikan & Pekerjaan */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1"><FaGraduationCap size={12}/> Pendidikan</label>
+                            <p className="text-sm font-bold text-gray-800">{mitra.pendidikan || '-'}</p>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1"><FaBriefcase size={12}/> Pekerjaan Utama</label>
+                            <p className="text-sm font-bold text-gray-800">{mitra.pekerjaan || '-'}</p>
+                        </div>
+                    </div>
+                    {mitra.deskripsi_pekerjaan_lain && (
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1 font-medium">Keterangan Pekerjaan Lain</label>
+                            <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded">{mitra.deskripsi_pekerjaan_lain}</p>
+                        </div>
+                    )}
+
+                    {/* Progress Honor Periode Ini */}
+                    <div className="mt-6 pt-6 border-t border-gray-100">
+                        <label className="block text-xs text-gray-500 mb-3 font-medium flex justify-between items-center">
+                            <span className="flex items-center gap-1 uppercase font-bold text-gray-400"><FaCoins size={12} /> Akumulasi Honor ({currentPeriodLabel})</span>
+                            {limitPendapatan > 0 && <span className="text-[10px] bg-blue-50 px-2 py-0.5 rounded text-blue-600 font-bold border border-blue-100">Max: Rp {limitPendapatan.toLocaleString('id-ID')}</span>}
                         </label>
                         
-                        <div className="flex items-end gap-2 mb-2">
-                            <div className="text-3xl font-extrabold text-gray-800">Rp {totalPendapatan.toLocaleString('id-ID')}</div>
+                        <div className="flex items-baseline gap-1 mb-2">
+                            <span className="text-3xl font-extrabold text-gray-800">Rp {totalPendapatan.toLocaleString('id-ID')}</span>
+                            <span className="text-xs text-gray-400 font-medium">dari estimasi tugas</span>
                         </div>
 
                         {limitPendapatan > 0 ? (
@@ -226,7 +274,9 @@ const DetailMitra = () => {
                                     <div style={{ width: `${percentage}%` }} className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-500 ${getProgressColor(percentage)}`}></div>
                                 </div>
                                 <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-medium">
-                                    <span>0%</span><span>{percentage.toFixed(1)}% Terpakai</span><span>100%</span>
+                                    <span>0%</span>
+                                    <span className={`${percentage > 100 ? 'text-red-500 font-bold' : ''}`}>{percentage.toFixed(1)}% Terpakai</span>
+                                    <span>100%</span>
                                 </div>
                             </div>
                         ) : (

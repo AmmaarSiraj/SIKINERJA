@@ -33,6 +33,7 @@ import ManajemenSPK from './pages/admin/ManajemenSPK';
 import CetakSPK from './pages/admin/CetakSPK';
 import PenugasanUser from './pages/Penugasan';
 import MitraUser from './pages/Mitra';
+import EditMitra from './pages/admin/EditMitra';
 
 // Import Layout
 import Layout from './layouts/Layout';
@@ -86,6 +87,7 @@ function AppRoutes() {
           <Route path="/admin/mitra/:id" element={<DetailMitra />} />
           <Route path="/admin/manajemen-jabatan" element={<ManajemenJabatan />} />
           <Route path="/admin/manajemen-spk" element={<ManajemenSPK />} />
+          <Route path="/admin/mitra/edit/:id" element={<EditMitra />} />
         </Route>
       </Routes>
     </BrowserRouter>

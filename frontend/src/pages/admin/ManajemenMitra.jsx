@@ -4,8 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx'; 
 import Swal from 'sweetalert2';
 import { 
-  FaDownload, FaFileUpload, FaTrash, FaChevronRight, FaUserTie,
-  FaCalendarAlt, FaList, FaBriefcase, FaCog, FaTimes, FaSave, FaPlus
+  FaDownload, FaFileUpload, FaTrash, FaUserTie,
+  FaCalendarAlt, FaList, FaBriefcase, FaCog, FaTimes, FaSave, FaPlus,
+  FaFileExcel, FaEdit
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -154,15 +155,68 @@ const ManajemenMitra = () => {
     return periodeStr;
   };
 
+  // --- DOWNLOAD TEMPLATE IMPORT (EXCEL KOSONG) ---
+  const handleDownloadTemplate = () => {
+    const templateData = [
+      {
+        "NIK": "1234567890123456",            
+        "Nama Lengkap": "Contoh Nama Mitra",
+        "Alamat Detail": "Jl. Merdeka No. 45",
+        "Jenis Kelamin": "Lk",                
+        "Pendidikan": "Tamat D4/S1",
+        "Pekerjaan": "Wiraswasta",
+        "Deskripsi Pekerjaan Lain": "-",
+        "No Telp": "081234567890",
+        "SOBAT ID": "12345",
+        "Email": "contoh@email.com"
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wscols = [
+        {wch: 20}, // NIK
+        {wch: 25}, // Nama
+        {wch: 35}, // Alamat
+        {wch: 15}, // JK
+        {wch: 20}, // Pendidikan
+        {wch: 20}, // Pekerjaan
+        {wch: 25}, // Deskripsi
+        {wch: 15}, // HP
+        {wch: 15}, // SOBAT ID
+        {wch: 25}  // Email
+    ];
+    ws['!cols'] = wscols;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template Import");
+    XLSX.writeFile(wb, "Template_Import_Mitra.xlsx");
+  };
+
+  // --- EXPORT DATA (FORMAT SAMA DENGAN IMPORT) ---
   const handleExport = () => { 
     const dataToExport = mitraList.map(m => ({
-      "Nama": m.nama_lengkap, "NIK": m.nik, "Alamat": m.alamat, "HP": m.no_hp, 
-      "Bank": m.nama_bank, "Rek": m.no_rekening
+      "NIK": m.nik,
+      "Nama Lengkap": m.nama_lengkap,
+      "Alamat Detail": m.alamat,
+      "Jenis Kelamin": m.jenis_kelamin || '',
+      "Pendidikan": m.pendidikan || '',
+      "Pekerjaan": m.pekerjaan || '',
+      "Deskripsi Pekerjaan Lain": m.deskripsi_pekerjaan_lain || '',
+      "No Telp": m.no_hp,
+      "SOBAT ID": m.sobat_id || '',
+      "Email": m.email || ''
     }));
+
     const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wscols = [
+        {wch: 20}, {wch: 30}, {wch: 40}, {wch: 15}, {wch: 15}, 
+        {wch: 20}, {wch: 25}, {wch: 15}, {wch: 15}, {wch: 25}
+    ];
+    ws['!cols'] = wscols;
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Data Mitra");
-    XLSX.writeFile(wb, "Data_Mitra.xlsx");
+    XLSX.writeFile(wb, "Data_Mitra_Export.xlsx");
   };
 
   const handleImportClick = () => fileInputRef.current.click();
@@ -229,8 +283,22 @@ const ManajemenMitra = () => {
             {viewMode === 'list' ? <><FaCalendarAlt /> Mode Periode</> : <><FaList /> Mode Daftar</>}
           </button>
 
-          <button onClick={handleExport} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 transition shadow-sm"><FaDownload /> Export</button>
-          <button onClick={handleImportClick} disabled={uploading} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm disabled:opacity-50"><FaFileUpload /> Import</button>
+          <button 
+            onClick={handleDownloadTemplate} 
+            className="flex items-center gap-2 bg-white hover:bg-gray-50 text-green-700 border border-green-200 px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm"
+            title="Download Template Excel Kosong"
+          >
+            <FaFileExcel /> Template
+          </button>
+
+          <button onClick={handleExport} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 transition shadow-sm">
+            <FaDownload /> Export XLSX
+          </button>
+          
+          <button onClick={handleImportClick} disabled={uploading} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm disabled:opacity-50">
+            <FaFileUpload /> Import
+          </button>
+          
           <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".xlsx, .xls" className="hidden" />
         </div>
       </div>
@@ -243,9 +311,9 @@ const ManajemenMitra = () => {
             <thead className="bg-gray-50">
                 <tr>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Nama Lengkap</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">NIK</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">NIK / ID Sobat</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Pekerjaan</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Kontak</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Bank</th>
                 <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Aksi</th>
                 </tr>
             </thead>
@@ -255,14 +323,42 @@ const ManajemenMitra = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-blue-50 text-[#1A2A80] rounded-full"><FaUserTie /></div>
-                            <div><div className="text-sm font-bold text-gray-900">{mitra.nama_lengkap}</div><div className="text-xs text-gray-500">{mitra.email}</div></div>
+                            <div>
+                                <div className="text-sm font-bold text-gray-900">{mitra.nama_lengkap}</div>
+                                <div className="text-xs text-gray-500">{mitra.email || '-'}</div>
+                            </div>
                         </div>
                     </td>
-                    <td className="px-6 py-4 text-xs font-mono text-gray-500">{mitra.nik}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{mitra.no_hp}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{mitra.nama_bank} - <span className="font-mono text-gray-500">{mitra.no_rekening}</span></td>
+                    <td className="px-6 py-4 text-xs font-mono text-gray-500">
+                        <div>{mitra.nik}</div>
+                        {mitra.sobat_id && <div className="text-blue-600 mt-1">ID: {mitra.sobat_id}</div>}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                        <div>{mitra.pekerjaan || '-'}</div>
+                        <div className="text-xs text-gray-400">{mitra.pendidikan}</div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                        <div>{mitra.no_hp}</div>
+                        <div className="text-xs text-gray-400">{mitra.alamat ? mitra.alamat.substring(0, 20) + '...' : '-'}</div>
+                    </td>
                     <td className="px-6 py-4 text-right">
-                        <button onClick={(e) => handleDelete(mitra.id, e)} className="text-red-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition"><FaTrash /></button>
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/admin/edit-mitra/${mitra.id}`);
+                            }} 
+                            className="text-blue-400 hover:text-blue-600 p-2 rounded-full hover:bg-blue-50 transition mr-1"
+                            title="Edit Mitra"
+                        >
+                            <FaEdit />
+                        </button>
+                        <button 
+                            onClick={(e) => handleDelete(mitra.id, e)} 
+                            className="text-red-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition"
+                            title="Hapus Mitra"
+                        >
+                            <FaTrash />
+                        </button>
                     </td>
                 </tr>
                 ))}
@@ -289,7 +385,6 @@ const ManajemenMitra = () => {
                                                 <td className="px-6 py-3 pl-12"><div className="text-sm font-bold text-gray-800">{fullMitra.nama_lengkap}</div><div className="text-xs text-gray-500 flex gap-1 items-center"><FaBriefcase size={10}/> {item.tugas} ({item.jabatan})</div></td>
                                                 <td className="px-6 py-3 text-xs font-mono text-gray-500">{fullMitra.nik}</td>
                                                 <td className="px-6 py-3 text-sm text-gray-600">{fullMitra.no_hp}</td>
-                                                <td className="px-6 py-3 text-sm text-gray-900">{fullMitra.nama_bank}</td>
                                             </tr>
                                         );
                                     })}

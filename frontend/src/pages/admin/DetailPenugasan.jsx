@@ -1,3 +1,4 @@
+// src/pages/admin/DetailPenugasan.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -5,11 +6,32 @@ import Swal from 'sweetalert2';
 import PopupTambahAnggota from '../../components/admin/PopupTambahAnggota';
 import { 
   FaArrowLeft, FaTrash, FaPlus, FaUserTie, FaChartPie, 
-  FaClipboardList, FaExclamationTriangle, FaMoneyBillWave
+  FaClipboardList, FaExclamationTriangle, FaMoneyBillWave,
+  FaBoxOpen, FaChartBar, FaTasks, FaEdit, FaCheckCircle
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const getToken = () => localStorage.getItem('token');
+
+// --- KOMPONEN DIAGRAM LINGKARAN (PIE CHART) ---
+const SimplePieChart = ({ percentage, colorHex }) => {
+  // Batasi visual antara 0% - 100% (meskipun data bisa overlimit)
+  const visualPercent = Math.min(Math.max(percentage, 0), 100);
+  
+  return (
+    <div className="relative w-20 h-20 rounded-full shadow-inner flex items-center justify-center bg-gray-100"
+         style={{
+           background: `conic-gradient(${colorHex} ${visualPercent * 3.6}deg, #e5e7eb 0deg)`
+         }}
+    >
+      <div className="w-16 h-16 bg-white rounded-full flex flex-col items-center justify-center z-10 shadow-sm">
+        <span className={`text-xs font-extrabold`} style={{ color: colorHex }}>
+          {Math.round(percentage)}%
+        </span>
+      </div>
+    </div>
+  );
+};
 
 const DetailPenugasan = () => {
   const { id } = useParams();
@@ -20,13 +42,16 @@ const DetailPenugasan = () => {
   const [listHonorarium, setListHonorarium] = useState([]); 
   
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
 
+  // State untuk Edit Member
+  const [editingMember, setEditingMember] = useState(null);
+  const [editForm, setEditForm] = useState({ kode_jabatan: '', volume_tugas: 1 });
+
+  // 1. FETCH DATA DETAIL
   const fetchDetailData = async () => {
     if (!id) return;
     setIsLoading(true);
-    setError(null);
     try {
       const token = getToken();
       const config = { headers: { Authorization: `Bearer ${token}` } };
@@ -39,11 +64,15 @@ const DetailPenugasan = () => {
 
       setPenugasan(penugasanRes.data);
       setAnggota(anggotaRes.data || []);
-      setListHonorarium(honorRes.data || []);
+      
+      // Filter honorarium hanya untuk subkegiatan ini
+      const currentSubId = penugasanRes.data.id_subkegiatan;
+      const filteredHonor = (honorRes.data || []).filter(h => h.id_subkegiatan == currentSubId);
+      setListHonorarium(filteredHonor);
 
     } catch (err) { 
       console.error(err);
-      setError(err.response?.data?.message || 'Gagal memuat data utama.');
+      Swal.fire('Error', 'Gagal memuat data detail.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -53,26 +82,72 @@ const DetailPenugasan = () => {
     fetchDetailData();
   }, [id]);
 
-  const getHonorValue = (kodeJabatan) => {
-    if (!penugasan || !kodeJabatan) return 0;
-    const match = listHonorarium.find(h => 
-      h.id_subkegiatan == penugasan.id_subkegiatan && 
-      h.kode_jabatan === kodeJabatan
-    );
-    return match ? Number(match.tarif) : 0;
+  // 2. LOGIKA HITUNG PROGRES (QUOTA)
+  const getJobStats = (kodeJabatan, basisVolume) => {
+    const totalAssigned = anggota
+      .filter(a => a.kode_jabatan === kodeJabatan)
+      .reduce((acc, curr) => acc + (Number(curr.volume_tugas) || 0), 0);
+    
+    const target = basisVolume || 0;
+    const remaining = target - totalAssigned;
+    const percentage = target > 0 ? (totalAssigned / target) * 100 : 0;
+    
+    return {
+      assigned: totalAssigned,
+      target: target,
+      remaining: remaining,
+      percentage: percentage
+    };
   };
 
+  const formatRupiah = (num) => {
+    const value = Number(num);
+    if (isNaN(value)) return 'Rp 0';
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
+  };
+
+  // 3. HANDLER EDIT MEMBER
+  const openEditModal = (member) => {
+    setEditingMember(member);
+    setEditForm({
+        kode_jabatan: member.kode_jabatan,
+        volume_tugas: member.volume_tugas
+    });
+  };
+
+  const handleUpdateMember = async (e) => {
+    e.preventDefault();
+    try {
+        const token = getToken();
+        await axios.put(`${API_URL}/api/kelompok-penugasan/${editingMember.id_kelompok}`, editForm, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'Tersimpan',
+            text: 'Data tugas anggota berhasil diperbarui.',
+            timer: 1500,
+            showConfirmButton: false
+        });
+        
+        setEditingMember(null);
+        fetchDetailData(); // Refresh data
+    } catch (err) {
+        Swal.fire('Gagal Update', err.response?.data?.error || 'Terjadi kesalahan.', 'error');
+    }
+  };
+
+  // 4. HANDLER DELETE
   const handleRemoveAnggota = async (id_kelompok, nama_mitra) => {
     const result = await Swal.fire({
       title: 'Keluarkan Anggota?',
-      text: `Apakah Anda yakin ingin mengeluarkan "${nama_mitra}" dari tim ini?`,
+      text: `Yakin ingin mengeluarkan "${nama_mitra}"?`,
       icon: 'warning',
       showCancelButton: true,
-      reverseButtons: true,
       confirmButtonColor: '#d33',
       cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Ya, Keluarkan!',
-      cancelButtonText: 'Batal'
+      confirmButtonText: 'Ya, Keluarkan!'
     });
 
     if (result.isConfirmed) {
@@ -81,11 +156,10 @@ const DetailPenugasan = () => {
         await axios.delete(`${API_URL}/api/kelompok-penugasan/${id_kelompok}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        
-        await Swal.fire('Dikeluarkan!', 'Anggota berhasil dikeluarkan dari tim.', 'success');
         fetchDetailData(); 
+        Swal.fire('Dikeluarkan!', 'Anggota berhasil dikeluarkan.', 'success');
       } catch (err) {
-        Swal.fire('Gagal!', 'Terjadi kesalahan saat menghapus anggota.', 'error');
+        Swal.fire('Gagal!', 'Gagal menghapus anggota.', 'error');
       }
     }
   };
@@ -93,14 +167,11 @@ const DetailPenugasan = () => {
   const handleDeletePenugasan = async () => {
     const result = await Swal.fire({
       title: 'Bubarkan Tim?',
-      text: "Tindakan ini akan menghapus penugasan ini dan mengeluarkan seluruh anggota yang terdaftar di dalamnya!",
+      text: "Seluruh data penugasan ini akan dihapus permanen!",
       icon: 'warning',
       showCancelButton: true,
-      reverseButtons: true,
       confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Ya, Bubarkan!',
-      cancelButtonText: 'Batal'
+      confirmButtonText: 'Ya, Bubarkan!'
     });
 
     if (result.isConfirmed) {
@@ -109,29 +180,26 @@ const DetailPenugasan = () => {
         await axios.delete(`${API_URL}/api/penugasan/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        await Swal.fire('Dibubarkan!', 'Tim penugasan berhasil dibubarkan.', 'success');
         navigate('/admin/penugasan');
+        Swal.fire('Dibubarkan!', 'Tim berhasil dibubarkan.', 'success');
       } catch (err) {
-        Swal.fire('Gagal!', 'Terjadi kesalahan saat membubarkan tim.', 'error');
+        Swal.fire('Gagal!', 'Gagal membubarkan tim.', 'error');
       }
     }
   };
 
-  const formatRupiah = (num) => {
-    const value = Number(num);
-    if (isNaN(value)) return 'Rp 0';
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
-  };
-  
-  if (isLoading) return <div className="text-center py-10 text-gray-500">Memuat detail...</div>;
-  if (error) return <div className="text-center py-10 text-red-600">{error}</div>;
-  if (!penugasan) return <div className="text-center py-10 text-gray-500">Data tidak ditemukan.</div>;
+  // Render Loading
+  if (isLoading) return <div className="text-center py-20 text-gray-500">Memuat detail penugasan...</div>;
+  if (!penugasan) return <div className="text-center py-20 text-red-500">Data penugasan tidak ditemukan.</div>;
+
+  // Hitung Total Honor Seluruh Tim
+  const totalHonorTim = anggota.reduce((acc, curr) => acc + (Number(curr.total_honor) || 0), 0);
 
   return (
     <>
-      <div className="w-full space-y-6">
+      <div className="w-full space-y-8 pb-20">
         
+        {/* === HEADER & NAVIGATION === */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <Link 
@@ -145,50 +213,127 @@ const DetailPenugasan = () => {
               {penugasan.nama_sub_kegiatan}
             </h1>
             <p className="text-sm text-gray-500 mt-1 ml-11">
-              Induk: <span className="font-medium">{penugasan.nama_kegiatan}</span>
+              Kegiatan Induk: <span className="font-medium text-gray-700">{penugasan.nama_kegiatan}</span>
             </p>
           </div>
           
           <button 
             onClick={handleDeletePenugasan}
-            className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-lg hover:bg-red-100 text-sm font-bold border border-red-200 transition shadow-sm"
+            className="flex items-center gap-2 bg-white text-red-600 px-4 py-2 rounded-lg hover:bg-red-50 text-sm font-bold border border-red-200 transition shadow-sm"
           >
             <FaTrash size={12} /> Bubarkan Tim
           </button>
         </div>
 
+        {/* === INFO RINGKAS TIM === */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
+              <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-[#1A2A80] text-xl">
                 <FaUserTie />
               </div>
               <div>
                 <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Ketua Tim / Pengawas</p>
                 <p className="text-base font-bold text-gray-900">{penugasan.nama_pengawas}</p>
-                <p className="text-sm text-gray-500">{penugasan.email_pengawas} ({penugasan.role_pengawas})</p>
+                <p className="text-sm text-gray-500">{penugasan.email_pengawas}</p>
               </div>
             </div>
 
-            <div>
-              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-2 flex items-center gap-2">
-                <FaChartPie /> Total Anggota
-              </p>
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-gray-900 text-lg">
-                  {anggota.length} <span className="text-gray-400 text-sm font-normal"> Orang</span>
-                </span>
-                <span className="text-xs font-bold px-2 py-1 rounded bg-green-100 text-green-700">
-                  Aktif
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-600 text-xl">
+                <FaChartPie />
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Total Anggota</p>
+                <div className="flex items-center gap-2">
+                    <span className="font-bold text-gray-900 text-xl">{anggota.length}</span>
+                    <span className="text-xs font-medium text-gray-500">Orang</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-yellow-50 flex items-center justify-center text-yellow-600 text-xl">
+                <FaMoneyBillWave />
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Total Anggaran Honor</p>
+                <span className="font-bold text-gray-900 text-xl">
+                    {formatRupiah(totalHonorTim)}
                 </span>
               </div>
             </div>
           </div>
         </div>
 
+        {/* === BAGIAN PROGRES (DIAGRAM LINGKARAN) === */}
+        <div className="space-y-4">
+            <h3 className="text-sm font-bold text-gray-700 uppercase flex items-center gap-2 px-1">
+                <FaChartBar className="text-[#1A2A80]"/> Progres & Kuota Jabatan
+            </h3>
+            
+            {listHonorarium.length === 0 ? (
+                <div className="p-6 bg-gray-50 text-gray-500 rounded-xl text-sm border border-gray-200 text-center italic">
+                    Belum ada data jabatan yang diatur untuk kegiatan ini.
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {listHonorarium.map(job => {
+                        const stats = getJobStats(job.kode_jabatan, job.basis_volume);
+                        const isOver = stats.assigned > stats.target;
+                        
+                        // Warna Chart: Merah (Over), Hijau (Pas), Biru (Proses)
+                        let chartColor = '#3b82f6'; // Blue
+                        if (stats.percentage >= 100 && !isOver) chartColor = '#22c55e'; // Green
+                        if (isOver) chartColor = '#ef4444'; // Red
+
+                        return (
+                            <div key={job.id_honorarium} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-5 relative overflow-hidden group hover:border-blue-300 transition-colors">
+                                
+                                {/* Info Kiri */}
+                                <div className="flex-1 space-y-3">
+                                    <div>
+                                        <h4 className="font-bold text-gray-800 text-sm leading-tight">{job.nama_jabatan}</h4>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[10px] font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">{job.kode_jabatan}</span>
+                                            <span className="text-[10px] text-gray-400">Total Kuota: <b>{stats.target}</b></span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="text-xs text-gray-600 space-y-1 pt-2 border-t border-dashed border-gray-100">
+                                        <div className="flex justify-between">
+                                            <span>Sudah Ditugaskan:</span>
+                                            <span className={`font-bold ${isOver ? 'text-red-600' : 'text-blue-600'}`}>{stats.assigned}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Belum Ditugaskan:</span>
+                                            <span className="font-medium text-gray-500">{stats.remaining < 0 ? 0 : stats.remaining}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Chart Kanan */}
+                                <div className="flex flex-col items-center justify-center">
+                                    <SimplePieChart percentage={stats.percentage} colorHex={chartColor} />
+                                    {isOver && (
+                                        <span className="absolute bottom-2 right-2 text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">
+                                            Overlimit
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+
+        {/* === TABEL ANGGOTA === */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
-            <h3 className="font-bold text-gray-800">Daftar Anggota Lapangan</h3>
+          <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                <FaTasks className="text-gray-400" /> Daftar Anggota Tim
+            </h3>
             <button 
               onClick={() => setIsPopupOpen(true)}
               className="flex items-center gap-2 bg-[#1A2A80] hover:bg-blue-900 text-white py-2 px-4 rounded-lg text-sm font-bold transition shadow-sm"
@@ -199,69 +344,93 @@ const DetailPenugasan = () => {
 
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-100">
-              <thead className="bg-white">
+              <thead className="bg-white text-gray-500 text-xs uppercase font-bold">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Nama Mitra</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Jabatan</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Honor</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Aksi</th>
+                  <th className="px-6 py-4 text-left tracking-wider">Nama Mitra</th>
+                  <th className="px-6 py-4 text-left tracking-wider">Detail Jabatan</th>
+                  <th className="px-6 py-4 text-center tracking-wider">Volume Tugas</th>
+                  <th className="px-6 py-4 text-right tracking-wider">Total Honor</th>
+                  <th className="px-6 py-4 text-right tracking-wider">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-gray-50 text-sm">
                 {anggota.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="px-6 py-12 text-center text-gray-400 italic">
+                    <td colSpan="5" className="px-6 py-12 text-center text-gray-400 italic">
                       <div className="flex flex-col items-center gap-2">
                         <FaExclamationTriangle size={24} className="text-gray-300"/>
-                        Belum ada anggota yang ditambahkan.
+                        Belum ada anggota yang ditambahkan ke tim ini.
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  anggota.map((item) => {
-                    const honorValue = getHonorValue(item.kode_jabatan);
-
-                    return (
-                      <tr key={item.id_kelompok} className="hover:bg-blue-50/30 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-[#1A2A80] font-bold text-xs">
-                              {item.nama_lengkap.charAt(0)}
-                            </div>
-                            <div>
-                              <div className="text-sm font-bold text-gray-900">{item.nama_lengkap}</div>
-                              <div className="text-xs text-gray-500 font-mono">{item.nik}</div>
-                            </div>
+                  anggota.map((item) => (
+                    <tr key={item.id_kelompok} className="hover:bg-blue-50/30 transition-colors group">
+                      
+                      {/* Kolom Nama */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-[#1A2A80] font-bold text-xs border border-blue-100">
+                            {item.nama_lengkap ? item.nama_lengkap.charAt(0) : '?'}
                           </div>
-                        </td>
+                          <div>
+                            <div className="font-bold text-gray-900">{item.nama_lengkap}</div>
+                            <div className="text-xs text-gray-500 font-mono">{item.nik}</div>
+                          </div>
+                        </div>
+                      </td>
 
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {item.nama_jabatan}
-                          </span>
-                          {item.kode_jabatan && (
-                             <div className="text-[10px] text-gray-400 mt-1 ml-1 font-mono">{item.kode_jabatan}</div>
-                          )}
-                        </td>
+                      {/* Kolom Jabatan */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-col">
+                            <span className="font-bold text-gray-700">{item.nama_jabatan}</span>
+                            <span className="text-xs text-gray-400 font-mono bg-gray-100 px-1.5 py-0.5 rounded w-fit mt-1">
+                                {item.kode_jabatan}
+                            </span>
+                        </div>
+                      </td>
 
-                        <td className="px-6 py-4 whitespace-nowrap">
-                           <div className="text-sm font-bold text-green-600 flex items-center gap-1">
-                             <FaMoneyBillWave size={12} className="text-green-500" />
-                             {formatRupiah(honorValue)}
-                           </div>
-                        </td>
+                      {/* Kolom Volume */}
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                         <div className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-3 py-1 rounded-lg text-gray-700 font-bold">
+                            {item.volume_tugas || 0} 
+                            <FaBoxOpen className="text-gray-400 text-xs"/>
+                         </div>
+                      </td>
 
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                          <button 
-                            onClick={() => handleRemoveAnggota(item.id_kelompok, item.nama_lengkap)}
-                            className="text-red-500 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 px-3 py-1 rounded-full transition text-xs flex items-center gap-1 ml-auto"
-                          >
-                            <FaTrash size={10} /> Keluarkan
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
+                      {/* Kolom Honor */}
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                         <div className="text-green-600 font-bold">
+                           {formatRupiah(item.total_honor)}
+                         </div>
+                         {Number(item.harga_satuan) > 0 && (
+                            <div className="text-[10px] text-gray-400 mt-0.5">
+                               @ {formatRupiah(item.harga_satuan)} / vol
+                            </div>
+                         )}
+                      </td>
+
+                      {/* Kolom Aksi */}
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-2">
+                            <button 
+                                onClick={() => openEditModal(item)} 
+                                className="text-blue-500 hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition" 
+                                title="Edit Volume/Jabatan"
+                            >
+                                <FaEdit />
+                            </button>
+                            <button 
+                                onClick={() => handleRemoveAnggota(item.id_kelompok, item.nama_lengkap)}
+                                className="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition" 
+                                title="Hapus Anggota"
+                            >
+                                <FaTrash />
+                            </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -269,12 +438,71 @@ const DetailPenugasan = () => {
         </div>
       </div>
 
-      <PopupTambahAnggota
-        isOpen={isPopupOpen}
-        onClose={() => setIsPopupOpen(false)}
-        id_penugasan={id}
-        existingAnggotaIds={anggota.map(a => a.id_mitra)}
-        onAnggotaAdded={fetchDetailData}
+      {/* --- MODAL EDIT ANGGOTA --- */}
+      {editingMember && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in-up">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 overflow-hidden">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-bold text-gray-800">Edit Tugas Anggota</h3>
+                    <button onClick={() => setEditingMember(null)} className="text-gray-400 hover:text-red-500"><FaTasks /></button>
+                </div>
+                
+                <div className="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-100 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 text-[#1A2A80] flex items-center justify-center font-bold text-xs">
+                        {editingMember.nama_lengkap.charAt(0)}
+                    </div>
+                    <div>
+                        <p className="text-sm font-bold text-gray-800">{editingMember.nama_lengkap}</p>
+                        <p className="text-xs text-gray-500">{editingMember.nik}</p>
+                    </div>
+                </div>
+
+                <form onSubmit={handleUpdateMember} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Jabatan</label>
+                        <select 
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1A2A80] outline-none"
+                            value={editForm.kode_jabatan}
+                            onChange={(e) => setEditForm({...editForm, kode_jabatan: e.target.value})}
+                        >
+                            {listHonorarium.map(h => (
+                                <option key={h.kode_jabatan} value={h.kode_jabatan}>
+                                    {h.nama_jabatan} (Rp {Number(h.tarif).toLocaleString('id-ID')})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Volume Tugas</label>
+                        <div className="flex items-center">
+                            <input 
+                                type="number" min="1"
+                                className="w-full border border-gray-300 rounded-l-lg px-3 py-2 text-sm font-bold text-gray-800 focus:ring-2 focus:ring-[#1A2A80] outline-none"
+                                value={editForm.volume_tugas}
+                                onChange={(e) => setEditForm({...editForm, volume_tugas: e.target.value})}
+                            />
+                            <span className="bg-gray-100 text-gray-500 px-3 py-2 rounded-r-lg border border-l-0 border-gray-300 text-sm font-bold">
+                                Unit
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-100">
+                        <button type="button" onClick={() => setEditingMember(null)} className="px-4 py-2 text-gray-600 text-sm font-bold hover:bg-gray-100 rounded-lg transition">Batal</button>
+                        <button type="submit" className="px-6 py-2 bg-[#1A2A80] text-white text-sm font-bold rounded-lg hover:bg-blue-900 transition shadow-md">Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {/* MODAL TAMBAH ANGGOTA (IMPORT) */}
+      <PopupTambahAnggota 
+        isOpen={isPopupOpen} 
+        onClose={() => setIsPopupOpen(false)} 
+        id_penugasan={id} 
+        existingAnggotaIds={anggota.map(a => a.id_mitra)} 
+        onAnggotaAdded={fetchDetailData} 
       />
     </>
   );

@@ -4,7 +4,8 @@ const router = express.Router();
 const {
   addMitraToPenugasan,
   removeMitraFromPenugasan,
-  getAllKelompokPenugasan
+  getAllKelompokPenugasan,
+  updateKelompokPenugasan
 } = require('../controllers/kelompokPenugasanController');
 // const authMiddleware = require('../midleware/authMiddleware'); // Dihapus
 
@@ -18,5 +19,6 @@ router.delete('/:id', removeMitraFromPenugasan);
 
 // Melihat semua daftar relasi (untuk admin dashboard)
 router.get('/', getAllKelompokPenugasan);
+router.put('/:id', updateKelompokPenugasan);
 
 module.exports = router;

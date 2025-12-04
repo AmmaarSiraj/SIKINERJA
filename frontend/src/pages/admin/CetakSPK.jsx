@@ -1,7 +1,7 @@
+// src/pages/admin/CetakSPK.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import bpsLogo from '../../assets/bpslogo.png'; 
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -75,10 +75,13 @@ const CetakSPK = () => {
   if (error || !data) return <div className="p-10 text-center text-red-500">{error || "Data tidak ditemukan"}</div>;
 
   const { mitra, setting, tasks } = data;
-  const totalHonor = tasks.reduce((acc, curr) => acc + Number(curr.tarif), 0);
-  const tahunAnggaran = setting.tanggal_surat ? new Date(setting.tanggal_surat).getFullYear() : new Date().getFullYear();
   
+  // Hitung total dari kolom 'total_honor'
+  const totalHonor = tasks.reduce((acc, curr) => acc + Number(curr.total_honor || 0), 0);
+  
+  const tahunAnggaran = setting.tanggal_surat ? new Date(setting.tanggal_surat).getFullYear() : new Date().getFullYear();
   const tglSuratObj = new Date(setting.tanggal_surat);
+  
   const hariIndo = tglSuratObj.toLocaleDateString('id-ID', { weekday: 'long' });
   const tglIndo = tglSuratObj.toLocaleDateString('id-ID', { day: 'numeric' });
   const blnIndo = tglSuratObj.toLocaleDateString('id-ID', { month: 'long' });
@@ -87,7 +90,7 @@ const CetakSPK = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-8 print:p-0 print:bg-white">
       
-      {/* CSS untuk Menghilangkan Header/Footer Bawaan Browser */}
+      {/* CSS Cetak */}
       <style>{`
         @page { 
           margin: 15mm; 
@@ -97,12 +100,12 @@ const CetakSPK = () => {
           body { 
             -webkit-print-color-adjust: exact; 
           }
-          /* Hilangkan header/footer default browser */
           @page { margin: 0; }
           body { margin: 1.6cm; }
         }
       `}</style>
 
+      {/* Toolbar Atas (Hidden saat Print) */}
       <div className="w-full max-w-[210mm] flex justify-between mb-6 print:hidden">
         <button 
           onClick={() => navigate(-1)}
@@ -118,10 +121,10 @@ const CetakSPK = () => {
         </button>
       </div>
 
+      {/* KONTEN SURAT A4 */}
       <div className="bg-white w-[210mm] p-[10mm] shadow-2xl text-black font-serif text-[11pt] leading-relaxed print:shadow-none print:w-full print:p-0">
         
         {/* === HALAMAN 1: PERJANJIAN (Pasal 1 - 3) === */}
-        {/* Tambahkan 'print:break-after-page' agar Pasal 4 dipaksa ke halaman baru */}
         <div className="print:break-after-page relative pb-10">
             <div className="text-center font-bold mb-6">
                 <h3 className="uppercase text-lg">PERJANJIAN KERJA</h3>
@@ -194,11 +197,9 @@ const CetakSPK = () => {
             </div>
         </div>
 
-        {/* === HALAMAN 2: PASAL 4 dst === */}
-        {/* Hapus min-h-[200mm] agar konten mengalir alami tanpa gap besar */}
-        <div className="print:break-before-page relative pt-8"> 
+        {/* === HALAMAN 2: PASAL 4 - PASAL 9 === */}
+        <div className="print:break-before-page relative pt-8 print:break-after-page"> 
              <div className="space-y-4">
-                {/* Pasal 4 Pindah Sini */}
                 <div className="text-center"><h4 className="font-bold">Pasal 4</h4></div>
                 <p className="text-justify">
                     PIHAK KEDUA berkewajiban melaksanakan seluruh pekerjaan yang diberikan oleh PIHAK PERTAMA sampai selesai, 
@@ -243,7 +244,12 @@ const CetakSPK = () => {
                 <p className="text-justify mt-2">
                     (2) Dalam hal terjadi peristiwa sebagaimana dimaksud pada ayat (1), PIHAK PERTAMA membayarkan honorarium kepada PIHAK KEDUA secara proporsional sesuai pekerjaan yang telah dilaksanakan.
                 </p>
+             </div>
+        </div>
 
+        {/* === HALAMAN 3: PASAL 10 - TANDA TANGAN === */}
+        <div className="print:break-before-page relative pt-8">
+             <div className="space-y-4">
                 <div className="text-center"><h4 className="font-bold">Pasal 10</h4></div>
                 <p className="text-justify">
                     (1) Apabila terjadi Keadaan Kahar, yang meliputi bencana alam dan bencana sosial, PIHAK KEDUA memberitahukan kepada PIHAK PERTAMA dalam waktu paling lambat 7 (tujuh) hari sejak mengetahui atas kejadian Keadaan Kahar dengan menyertakan bukti.
@@ -284,7 +290,7 @@ const CetakSPK = () => {
              </div>
         </div>
 
-        {/* === HALAMAN 3: LAMPIRAN === */}
+        {/* === HALAMAN 4: LAMPIRAN TABEL === */}
         <div className="print:break-before-page min-h-[297mm] pt-10">
             <div className="text-center font-bold mb-8">
                 <h3 className="uppercase">LAMPIRAN</h3>
@@ -296,45 +302,64 @@ const CetakSPK = () => {
 
             <h4 className="font-bold mb-4 uppercase text-center text-sm">DAFTAR URAIAN TUGAS, JANGKA WAKTU, NILAI PERJANJIAN, DAN BEBAN ANGGARAN</h4>
 
+            {/* TABEL RINCIAN TUGAS (Sesuai PDF Referensi) */}
             <table className="w-full border-collapse border border-black text-sm">
                 <thead>
                     <tr className="bg-gray-100">
                         <th className="border border-black px-2 py-2 w-10 text-center">No</th>
                         <th className="border border-black px-3 py-2 text-left">Uraian Tugas</th>
-                        <th className="border border-black px-3 py-2 text-center w-40">Jangka Waktu</th>
-                        <th className="border border-black px-3 py-2 text-center w-20">Target Volume</th>
-                        <th className="border border-black px-3 py-2 text-center w-24">Satuan</th>
-                        <th className="border border-black px-3 py-2 text-right w-28">Harga Satuan</th>
-                        <th className="border border-black px-3 py-2 text-right w-32">Nilai Perjanjian</th>
+                        <th className="border border-black px-3 py-2 text-center w-32">Jangka Waktu</th>
+                        <th className="border border-black px-3 py-2 text-center w-16">Target Volume</th>
+                        <th className="border border-black px-3 py-2 text-center w-20">Pekerjaan Satuan</th>
+                        <th className="border border-black px-3 py-2 text-right w-24">Harga Satuan</th>
+                        <th className="border border-black px-3 py-2 text-right w-28">Nilai Perjanjian</th>
+                        <th className="border border-black px-3 py-2 text-center w-24">Beban Anggaran</th>
                     </tr>
                 </thead>
                 <tbody>
                     {tasks.map((task, index) => (
                         <tr key={index}>
                             <td className="border border-black px-2 py-2 text-center align-top">{index + 1}</td>
+                            
+                            {/* Uraian Tugas: Nama Sub Kegiatan */}
                             <td className="border border-black px-3 py-2 align-top">
                                 <span className="font-bold block">{task.nama_sub_kegiatan}</span>
-                                <span className="text-xs italic">{task.nama_kegiatan}</span>
                             </td>
-                            <td className="border border-black px-3 py-2 text-center align-top">
+                            
+                            {/* Jangka Waktu */}
+                            <td className="border border-black px-3 py-2 text-center align-top text-xs">
                                 {formatDateIndo(task.tanggal_mulai)} s.d. <br/> {formatDateIndo(task.tanggal_selesai)}
                             </td>
+                            
+                            {/* Target Volume (Individual) */}
                             <td className="border border-black px-3 py-2 text-center align-top">
-                                {task.basis_volume}
+                                {task.target_volume}
                             </td>
+                            
+                            {/* Satuan */}
                             <td className="border border-black px-3 py-2 text-center align-top">
                                 {task.nama_satuan}
                             </td>
+                            
+                            {/* Harga Satuan */}
                             <td className="border border-black px-3 py-2 text-right align-top">
-                                {formatRupiah(task.tarif)}
+                                {formatRupiah(task.harga_satuan)}
                             </td>
+                            
+                            {/* Nilai Perjanjian (Total) */}
                             <td className="border border-black px-3 py-2 text-right align-top">
-                                {formatRupiah(task.tarif)}
+                                {formatRupiah(task.total_honor)}
+                            </td>
+                            
+                            {/* Beban Anggaran (Placeholder / Kosong) */}
+                            <td className="border border-black px-3 py-2 text-center align-top text-xs">
+                                -
                             </td>
                         </tr>
                     ))}
                 </tbody>
                 <tfoot>
+                    {/* Baris Total Terbilang */}
                     <tr>
                         <td colSpan="6" className="border border-black px-3 py-3 font-bold text-center italic bg-gray-50">
                             Terbilang: {formatTerbilang(totalHonor)}
@@ -342,6 +367,7 @@ const CetakSPK = () => {
                         <td className="border border-black px-3 py-3 text-right font-bold bg-gray-50">
                             {formatRupiah(totalHonor)}
                         </td>
+                        <td className="border border-black px-3 py-3 bg-gray-50"></td>
                     </tr>
                 </tfoot>
             </table>

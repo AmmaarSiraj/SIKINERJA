@@ -4,7 +4,6 @@ const { pool } = require('../config/db');
 // GET: Ambil daftar periode yang memiliki aktivitas (untuk menu accordion)
 exports.getSPKPeriods = async (req, res) => {
   try {
-    // Kita ambil periode unik dari tabel subkegiatan yang sudah ada datanya
     const sql = `
       SELECT DISTINCT periode 
       FROM subkegiatan 
@@ -24,7 +23,6 @@ exports.getSPKSetting = async (req, res) => {
   const { periode } = req.params;
   try {
     const [rows] = await pool.query('SELECT * FROM spk_setting WHERE periode = ?', [periode]);
-    // Jika belum ada setting, kembalikan object kosong/null (bukan error)
     res.json(rows.length > 0 ? rows[0] : null);
   } catch (error) {
     console.error("Error getSPKSetting:", error);
@@ -47,7 +45,6 @@ exports.saveSPKSetting = async (req, res) => {
   if (!periode) return res.status(400).json({ error: 'Periode wajib diisi.' });
 
   try {
-    // Gunakan sintaks INSERT ... ON DUPLICATE KEY UPDATE agar efisien
     const sql = `
       INSERT INTO spk_setting 
       (periode, nomor_surat_format, tanggal_surat, nama_ppk, nip_ppk, jabatan_ppk, komponen_honor)
@@ -77,14 +74,12 @@ exports.saveSPKSetting = async (req, res) => {
 exports.getMitraByPeriod = async (req, res) => {
   const { periode } = req.params;
   try {
-    // Cari mitra yang punya tugas (kelompok_penugasan) di subkegiatan pada periode ini
+    // UPDATE: Menghapus m.no_rekening dan m.nama_bank dari query
     const sql = `
       SELECT DISTINCT 
         m.id, 
         m.nama_lengkap, 
-        m.nik, 
-        m.no_rekening,
-        m.nama_bank
+        m.nik
       FROM mitra m
       JOIN kelompok_penugasan kp ON m.id = kp.id_mitra
       JOIN penugasan p ON kp.id_penugasan = p.id
@@ -114,16 +109,17 @@ exports.getPrintData = async (req, res) => {
     const setting = settingRows.length > 0 ? settingRows[0] : {};
 
     // 3. Ambil Rincian Tugas & Honor (Untuk Lampiran Tabel)
-    // Note: Karena tabel kelompok_penugasan belum ada kolom volume, kita asumsikan 1 paket/kegiatan
+    // UPDATE: Menggunakan kp.volume_tugas dan perhitungan (h.tarif * kp.volume_tugas)
     const sqlTasks = `
       SELECT 
         s.nama_sub_kegiatan,
         k.nama_kegiatan,
         s.tanggal_mulai,
         s.tanggal_selesai,
-        h.tarif,
-        h.basis_volume,
-        sat.nama_satuan
+        h.tarif AS harga_satuan,
+        kp.volume_tugas AS target_volume,
+        sat.nama_satuan,
+        (h.tarif * kp.volume_tugas) AS total_honor
       FROM kelompok_penugasan kp
       JOIN penugasan p ON kp.id_penugasan = p.id
       JOIN subkegiatan s ON p.id_subkegiatan = s.id

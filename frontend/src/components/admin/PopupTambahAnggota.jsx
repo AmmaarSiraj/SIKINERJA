@@ -1,13 +1,15 @@
 // src/components/admin/PopupTambahAnggota.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import Swal from 'sweetalert2'; // Import SweetAlert2
 import { 
   FaSearch, 
   FaUserPlus, 
   FaTimes, 
   FaIdCard, 
   FaBriefcase,
-  FaExclamationCircle
+  FaExclamationCircle,
+  FaBoxOpen 
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -20,13 +22,14 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
   
   // Selection State
   const [selectedJob, setSelectedJob] = useState(''); 
+  const [volume, setVolume] = useState(1); 
   const [searchTerm, setSearchTerm] = useState('');
   
   // UI State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // 1. FETCH DATA (Mitra, Penugasan, Honorarium)
+  // 1. FETCH DATA
   useEffect(() => {
     if (isOpen && id_penugasan) {
       const initData = async () => {
@@ -36,23 +39,24 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
           const token = getToken();
           const headers = { Authorization: `Bearer ${token}` };
 
-          // A. Ambil Detail Penugasan (untuk tahu id_subkegiatan)
+          // A. Ambil Detail Penugasan
           const resPenugasan = await axios.get(`${API_URL}/api/penugasan/${id_penugasan}`, { headers });
           const idSubKegiatan = resPenugasan.data.id_subkegiatan;
 
-          // B. Ambil Master Mitra & Honorarium secara paralel
+          // B. Ambil Master Mitra & Honorarium
           const [resMitra, resHonor] = await Promise.all([
             axios.get(`${API_URL}/api/mitra`, { headers }),
             axios.get(`${API_URL}/api/honorarium`, { headers })
           ]);
 
-          // C. Filter Jabatan yang tersedia untuk Sub Kegiatan ini
+          // C. Filter Jabatan
           const validHonors = resHonor.data.filter(h => h.id_subkegiatan == idSubKegiatan);
           
           const jobs = validHonors.map(h => ({
             kode: h.kode_jabatan,
             nama: h.nama_jabatan,
-            tarif: h.tarif
+            tarif: h.tarif,
+            satuan: h.nama_satuan 
           }));
 
           setAllMitra(resMitra.data || []);
@@ -61,6 +65,7 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
           if (jobs.length > 0) {
             setSelectedJob(jobs[0].kode);
           }
+          setVolume(1);
 
         } catch (err) {
           console.error(err);
@@ -74,44 +79,57 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
     }
   }, [isOpen, id_penugasan]);
 
-  // 2. FILTER MITRA (LOGIKA DIPERKUAT)
-  // Hanya tampilkan mitra yang BELUM ada di existingAnggotaIds
+  // 2. FILTER MITRA
   const availableMitra = useMemo(() => {
     if (!existingAnggotaIds) return allMitra;
-
-    // Konversi semua ID ke String agar perbandingan aman (antisipasi beda tipe data Number vs String)
     const excludedIds = new Set(existingAnggotaIds.map(id => String(id)));
     
     return allMitra
-      .filter(mitra => !excludedIds.has(String(mitra.id))) // Filter Utama: Exclude yang sudah ada
+      .filter(mitra => !excludedIds.has(String(mitra.id)))
       .filter(mitra => 
         mitra.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (mitra.nik && mitra.nik.includes(searchTerm))
       );
   }, [allMitra, existingAnggotaIds, searchTerm]);
 
-  // 3. HANDLER TAMBAH ANGGOTA
+  // 3. HANDLER TAMBAH ANGGOTA (DENGAN NOTIFIKASI SWAL)
   const handleAddAnggota = async (id_mitra) => {
     if (!selectedJob) {
-      alert("Harap pilih posisi/jabatan terlebih dahulu!");
+      Swal.fire('Peringatan', 'Harap pilih posisi/jabatan terlebih dahulu!', 'warning');
       return;
     }
+    
+    // Pastikan volume valid (jika user mengosongkan input, set ke 1)
+    const finalVolume = (!volume || volume <= 0) ? 1 : volume;
 
     try {
       const token = getToken();
+      
       await axios.post(`${API_URL}/api/kelompok-penugasan`, 
         { 
           id_penugasan, 
           id_mitra,
-          kode_jabatan: selectedJob 
+          kode_jabatan: selectedJob,
+          volume_tugas: finalVolume 
         }, 
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      onAnggotaAdded(); // Refresh parent agar list existingAnggotaIds terupdate
+      // Notifikasi Sukses
+      Swal.fire({
+        title: 'Berhasil!',
+        text: 'Anggota berhasil ditambahkan ke tim.',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+      });
+
+      onAnggotaAdded(); // Refresh data di parent
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.error || 'Gagal menambahkan anggota');
+      Swal.fire('Gagal', err.response?.data?.error || 'Gagal menambahkan anggota', 'error');
     }
   };
 
@@ -134,36 +152,72 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
           </button>
         </div>
 
-        {/* --- SECTION PILIH JABATAN --- */}
-        <div className="px-5 pt-5 pb-2 bg-white">
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2">
-                <FaBriefcase className="text-[#1A2A80]" /> Pilih Posisi Penugasan
-            </label>
+        {/* --- FORM PENGATURAN TUGAS (JABATAN & VOLUME) --- */}
+        <div className="px-5 pt-5 pb-3 bg-white space-y-4">
             
-            {loading ? (
-                <div className="h-10 bg-gray-100 rounded animate-pulse w-full"></div>
-            ) : availableJobs.length === 0 ? (
-                <div className="p-3 bg-red-50 text-red-600 text-sm rounded border border-red-100 flex items-center gap-2">
-                    <FaExclamationCircle /> 
-                    <span>Tidak ada jabatan/honor yang diatur untuk kegiatan ini.</span>
+            {/* 1. Pilih Jabatan */}
+            <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2">
+                    <FaBriefcase className="text-[#1A2A80]" /> Pilih Posisi Penugasan
+                </label>
+                
+                {loading ? (
+                    <div className="h-10 bg-gray-100 rounded animate-pulse w-full"></div>
+                ) : availableJobs.length === 0 ? (
+                    <div className="p-3 bg-red-50 text-red-600 text-sm rounded border border-red-100 flex items-center gap-2">
+                        <FaExclamationCircle /> 
+                        <span>Tidak ada jabatan/honor yang diatur untuk kegiatan ini.</span>
+                    </div>
+                ) : (
+                    <select
+                        value={selectedJob}
+                        onChange={(e) => setSelectedJob(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm font-medium bg-gray-50 focus:bg-white transition"
+                    >
+                        {availableJobs.map((job) => (
+                            <option key={job.kode} value={job.kode}>
+                                {job.nama} (Rp {Number(job.tarif).toLocaleString('id-ID')})
+                            </option>
+                        ))}
+                    </select>
+                )}
+            </div>
+
+            {/* 2. Atur Volume (Jumlah Tugas) */}
+            <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2">
+                    <FaBoxOpen className="text-[#1A2A80]" /> Atur Jumlah Tugas (Target Volume)
+                </label>
+                <div className="flex items-center">
+                    <input 
+                        type="number" 
+                        min="1" 
+                        value={volume}
+                        // UX: Auto-select saat diklik & validasi saat blur
+                        onFocus={(e) => e.target.select()} 
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            setVolume(val === '' ? '' : parseInt(val));
+                        }}
+                        onBlur={() => {
+                            if (!volume || volume < 1) setVolume(1);
+                        }}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-l-xl focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm font-bold bg-gray-50 focus:bg-white transition"
+                        placeholder="1"
+                    />
+                    <div className="bg-gray-100 border border-l-0 border-gray-300 px-4 py-2.5 rounded-r-xl text-sm font-medium text-gray-500">
+                        Unit/Dokumen
+                    </div>
                 </div>
-            ) : (
-                <select
-                    value={selectedJob}
-                    onChange={(e) => setSelectedJob(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm font-medium bg-gray-50 focus:bg-white transition"
-                >
-                    {availableJobs.map((job) => (
-                        <option key={job.kode} value={job.kode}>
-                            {job.nama} (Rp {Number(job.tarif).toLocaleString('id-ID')})
-                        </option>
-                    ))}
-                </select>
-            )}
+                <p className="text-[10px] text-gray-400 mt-1 ml-1">
+                    *Tentukan berapa banyak target pekerjaan untuk anggota yang akan dipilih.
+                </p>
+            </div>
+
         </div>
 
         {/* SEARCH BAR */}
-        <div className="px-5 py-3 border-b border-gray-100">
+        <div className="px-5 py-3 border-b border-t border-gray-100 bg-gray-50/50">
           <div className="relative">
             <span className="absolute left-4 top-3 text-gray-400">
                 <FaSearch />
@@ -171,7 +225,7 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
             <input
                 type="text"
                 placeholder="Cari nama atau NIK mitra..."
-                className="w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm transition"
+                className="w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm transition bg-white"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
             />

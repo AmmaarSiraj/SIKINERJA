@@ -95,7 +95,7 @@ const TambahPenugasan = () => {
     fetchSubDropdown();
   }, [selectedKegiatanId]);
 
-  // 3. HITUNG PENDAPATAN & LIMIT (HISTORIS)
+  // 3. HITUNG PENDAPATAN & LIMIT (HISTORIS - TAHUNAN) + ALERT JIKA KOSONG
   useEffect(() => {
     if (!selectedSubId) {
       setBatasHonorPeriode(0);
@@ -106,27 +106,52 @@ const TambahPenugasan = () => {
     const subInfo = listSubKegiatan.find(s => s.id === selectedSubId);
     if (!subInfo || !subInfo.periode) return;
     
-    const periode = subInfo.periode;
-    const aturan = listAturan.find(r => r.periode === periode);
-    setBatasHonorPeriode(aturan ? Number(aturan.batas_honor) : 0);
+    // Ambil TAHUN dari periode sub kegiatan (misal "2025-02" -> "2025")
+    const tahunKegiatan = subInfo.periode.split('-')[0]; 
+
+    // Cari aturan berdasarkan TAHUN
+    const aturan = listAturan.find(r => 
+        String(r.tahun) === String(tahunKegiatan) || 
+        String(r.periode) === String(tahunKegiatan)
+    );
+    
+    if (aturan) {
+        setBatasHonorPeriode(Number(aturan.batas_honor));
+    } else {
+        setBatasHonorPeriode(0);
+        // --- ALERT JIKA ATURAN TIDAK DITEMUKAN ---
+        Swal.fire({
+            title: 'Peringatan Aturan',
+            text: `Belum ada aturan batas honor untuk tahun ${tahunKegiatan}. Mohon atur terlebih dahulu di menu Manajemen Mitra agar validasi honor berjalan.`,
+            icon: 'warning',
+            confirmButtonText: 'Mengerti',
+            confirmButtonColor: '#f59e0b' // Warna orange/kuning warning
+        });
+    }
 
     const incomeMap = {};
     
+    // Hitung akumulasi honor SETAHUN PENUH
     listKelompok.forEach(k => {
       const penugasan = listPenugasan.find(p => p.id_penugasan === k.id_penugasan);
       if (!penugasan) return;
       
       const sub = allSubKegiatan.find(s => s.id === penugasan.id_subkegiatan);
-      if (!sub || sub.periode !== periode) return;
+      
+      // Validasi: Pastikan sub kegiatan ada dan TAHUNNYA SAMA
+      if (!sub || !sub.periode) return;
+      const subYear = sub.periode.split('-')[0];
+
+      // Jika tahunnya beda, jangan dijumlahkan (misal data 2024 tidak pengaruh ke limit 2025)
+      if (subYear !== tahunKegiatan) return;
 
       const honor = listHonorarium.find(h => h.id_subkegiatan === sub.id && h.kode_jabatan === k.kode_jabatan);
       const tarif = honor ? Number(honor.tarif) : 0;
-      // Perhitungan histori: tarif * volume_tugas yang tersimpan
       const vol = k.volume_tugas ? Number(k.volume_tugas) : 0; 
 
       const mId = String(k.id_mitra);
-      // Jika data lama volume 0, anggap 1 agar nominal tidak 0 (untuk backward compatibility)
       const multiplier = vol > 0 ? vol : 1; 
+      
       incomeMap[mId] = (incomeMap[mId] || 0) + (tarif * multiplier);
     });
 
@@ -156,7 +181,6 @@ const TambahPenugasan = () => {
 
   // Fungsi menghitung volume terpakai per jabatan
   const getVolumeStats = (kodeJabatan, basisVolume) => {
-    // A. Hitung volume dari database (sudah tersimpan)
     const relatedPenugasanIds = listPenugasan
       .filter(p => String(p.id_subkegiatan) === String(selectedSubId))
       .map(p => p.id_penugasan);
@@ -165,7 +189,6 @@ const TambahPenugasan = () => {
         .filter(k => relatedPenugasanIds.includes(k.id_penugasan) && k.kode_jabatan === kodeJabatan)
         .reduce((acc, curr) => acc + (Number(curr.volume_tugas) || 0), 0);
 
-    // B. Hitung volume dari draft (yang sedang diinput user)
     const usedInDraft = selectedMitras
         .filter(m => m.assignedJabatan === kodeJabatan)
         .reduce((acc, curr) => acc + (Number(curr.assignedVolume) || 0), 0);
@@ -218,21 +241,27 @@ const TambahPenugasan = () => {
     }
 
     // 2. Validasi Batas Honor
-    const overLimitUser = selectedMitras.find(m => {
-        const hInfo = availableJabatan.find(h => h.kode_jabatan === m.assignedJabatan);
-        const tarif = hInfo ? Number(hInfo.tarif) : 0;
-        const totalHonorBaru = tarif * Number(m.assignedVolume); // Honor = Tarif * Volume
+    // Hanya validasi jika batasHonorPeriode > 0 (Artinya aturan sudah diset)
+    if (batasHonorPeriode > 0) {
+        const overLimitUser = selectedMitras.find(m => {
+            const hInfo = availableJabatan.find(h => h.kode_jabatan === m.assignedJabatan);
+            const tarif = hInfo ? Number(hInfo.tarif) : 0;
+            const totalHonorBaru = tarif * Number(m.assignedVolume);
 
-        const current = mitraIncomeMap[String(m.id)] || 0;
-        return batasHonorPeriode > 0 && (current + totalHonorBaru) > batasHonorPeriode;
-    });
+            const current = mitraIncomeMap[String(m.id)] || 0;
+            return (current + totalHonorBaru) > batasHonorPeriode;
+        });
 
-    if (overLimitUser) {
-        return Swal.fire(
-            'Gagal Menyimpan', 
-            `Mitra <b>${overLimitUser.nama_lengkap}</b> melebihi batas honor periode ini. Silakan kurangi volume/honor atau hapus dari daftar.`, 
-            'error'
-        );
+        if (overLimitUser) {
+            return Swal.fire(
+                'Gagal Menyimpan', 
+                `Mitra <b>${overLimitUser.nama_lengkap}</b> melebihi batas honor tahunan ini. Silakan kurangi volume/honor atau hapus dari daftar.`, 
+                'error'
+            );
+        }
+    } else {
+        // Peringatan opsional jika user memaksa simpan tanpa aturan
+        // (Biasanya backend juga akan menolak jika logic backend mengharuskan ada aturan)
     }
 
     setSubmitting(true);
@@ -253,7 +282,7 @@ const TambahPenugasan = () => {
                 id_penugasan: idPenugasanExist,
                 id_mitra: m.id,
                 kode_jabatan: m.assignedJabatan,
-                volume_tugas: m.assignedVolume // Kirim Volume
+                volume_tugas: m.assignedVolume
             }, { headers });
         });
         await Promise.all(promises);
@@ -274,7 +303,7 @@ const TambahPenugasan = () => {
             anggota: selectedMitras.map(m => ({
                 id_mitra: m.id,
                 kode_jabatan: m.assignedJabatan,
-                volume_tugas: m.assignedVolume // Kirim Volume
+                volume_tugas: m.assignedVolume
             }))
         };
         await axios.post(`${API_URL}/api/penugasan`, payload, { headers });
@@ -466,7 +495,7 @@ const TambahPenugasan = () => {
                                         <div className="mt-2">
                                             <div className="flex justify-between text-[10px] mb-1 text-gray-500">
                                                 <span>Rp {currentIncome.toLocaleString('id-ID')}</span>
-                                                <span>Batas: Rp {limit.toLocaleString('id-ID')}</span>
+                                                <span>Batas Thn: Rp {limit.toLocaleString('id-ID')}</span>
                                             </div>
                                             <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                                                 <div className={`h-1.5 rounded-full ${percent > 90 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${Math.min(percent, 100)}%` }}></div>
@@ -572,12 +601,12 @@ const TambahPenugasan = () => {
                              </div>
                           </div>
 
-                          {/* BAR PROGRESS HONOR (RESTORED) */}
+                          {/* BAR PROGRESS HONOR */}
                           {limit > 0 && (
                             <div className="mt-3 border-t border-gray-100 pt-2">
                                 <div className="flex justify-between text-[10px] text-gray-500 mb-1">
                                     <span>Total Proyeksi: {formatRupiah(totalProjected)}</span>
-                                    <span>Batas: {formatRupiah(limit)}</span>
+                                    <span>Batas Thn: {formatRupiah(limit)}</span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden flex">
                                     {/* Bar Pendapatan Lama */}
@@ -598,7 +627,7 @@ const TambahPenugasan = () => {
 
                           {isOverLimit && (
                              <div className="mt-2 text-[10px] text-red-600 font-bold flex items-center gap-1 animate-pulse justify-end">
-                               <FaExclamationCircle /> Akumulasi pendapatan melebihi batas periode!
+                               <FaExclamationCircle /> Akumulasi pendapatan melebihi batas tahunan!
                              </div>
                           )}
 

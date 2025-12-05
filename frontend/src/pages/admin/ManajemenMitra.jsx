@@ -1,3 +1,4 @@
+// src/pages/admin/ManajemenMitra.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom'; 
@@ -20,9 +21,11 @@ const ManajemenMitra = () => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   
+  // --- STATE UNTUK ATURAN HONOR (TAHUNAN) ---
   const [showModalRule, setShowModalRule] = useState(false);
   const [rules, setRules] = useState([]);
-  const [newRule, setNewRule] = useState({ periode: '', batas_honor: '' });
+  // Default tahun sekarang
+  const [newRule, setNewRule] = useState({ tahun: new Date().getFullYear(), batas_honor: '' });
   const [loadingRules, setLoadingRules] = useState(false);
 
   const fileInputRef = useRef(null); 
@@ -46,6 +49,7 @@ const ManajemenMitra = () => {
 
   useEffect(() => { fetchMitra(); }, []);
 
+  // --- FETCH RULES (Backend mengirim field 'tahun') ---
   const fetchRules = async () => {
     setLoadingRules(true);
     try {
@@ -63,13 +67,24 @@ const ManajemenMitra = () => {
     fetchRules();
   };
 
+  // --- SIMPAN RULE (Format Tahun) ---
   const handleSaveRule = async () => {
-    if (!newRule.periode || !newRule.batas_honor) return Swal.fire("Gagal", "Lengkapi data periode dan nominal.", "warning");
+    if (!newRule.tahun || !newRule.batas_honor) {
+        return Swal.fire("Gagal", "Lengkapi data tahun dan nominal batas honor.", "warning");
+    }
+    
+    // Validasi format tahun 4 digit
+    if (!/^\d{4}$/.test(newRule.tahun)) {
+        return Swal.fire("Gagal", "Format tahun harus 4 digit angka (contoh: 2025).", "warning");
+    }
+
     try {
         await axios.post(`${API_URL}/api/aturan-periode`, newRule);
-        setNewRule({ periode: '', batas_honor: '' });
+        
+        // Reset form
+        setNewRule({ tahun: new Date().getFullYear(), batas_honor: '' });
         fetchRules();
-        Swal.fire("Sukses", "Aturan periode berhasil disimpan.", "success");
+        Swal.fire("Sukses", "Aturan batas honor tahunan berhasil disimpan.", "success");
     } catch (err) {
         Swal.fire("Gagal", err.response?.data?.error || "Gagal menyimpan.", "error");
     }
@@ -147,12 +162,16 @@ const ManajemenMitra = () => {
 
   const formatPeriodeLabel = (periodeStr) => {
     if (!periodeStr) return '-';
-    const parts = periodeStr.split('-');
-    if (parts.length === 2) {
-      const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1);
-      return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    // Cek jika formatnya YYYY-MM
+    if (periodeStr.includes('-')) {
+        const parts = periodeStr.split('-');
+        if (parts.length === 2) {
+          const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1);
+          return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+        }
     }
-    return periodeStr;
+    // Jika formatnya hanya Tahun (YYYY)
+    return `Tahun ${periodeStr}`;
   };
 
   // --- DOWNLOAD TEMPLATE IMPORT (EXCEL KOSONG) ---
@@ -397,43 +416,71 @@ const ManajemenMitra = () => {
         )}
       </div>
 
+      {/* --- MODAL ATURAN HONOR TAHUNAN --- */}
       {showModalRule && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-up">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in-up">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><FaCog /> Aturan Batas Honor</h3>
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><FaCog /> Aturan Batas Honor Tahunan</h3>
                     <button onClick={() => setShowModalRule(false)} className="text-gray-400 hover:text-red-500"><FaTimes /></button>
                 </div>
                 
                 <div className="p-6">
+                    <p className="text-sm text-gray-500 mb-4 bg-yellow-50 p-3 rounded border border-yellow-200">
+                       Atur batas maksimal pendapatan seorang mitra dalam satu tahun anggaran.
+                    </p>
+
                     <div className="flex gap-3 mb-6 items-end">
-                        <div className="flex-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Periode</label>
-                            <input type="month" className="w-full border rounded px-3 py-2 text-sm" 
-                                value={newRule.periode} onChange={e => setNewRule({...newRule, periode: e.target.value})} 
+                        <div className="w-1/3">
+                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Tahun Anggaran</label>
+                            {/* INPUT NUMBER UNTUK TAHUN */}
+                            <input 
+                                type="number" 
+                                min="2000" 
+                                max="2099" 
+                                placeholder="2025"
+                                className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-[#1A2A80] outline-none font-bold" 
+                                value={newRule.tahun} 
+                                onChange={e => setNewRule({...newRule, tahun: e.target.value})} 
                             />
                         </div>
                         <div className="flex-1">
                             <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Max Honor (Rp)</label>
-                            <input type="number" className="w-full border rounded px-3 py-2 text-sm" placeholder="0"
-                                value={newRule.batas_honor} onChange={e => setNewRule({...newRule, batas_honor: e.target.value})}
+                            <input 
+                                type="number" 
+                                className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-[#1A2A80] outline-none" 
+                                placeholder="Contoh: 5000000"
+                                value={newRule.batas_honor} 
+                                onChange={e => setNewRule({...newRule, batas_honor: e.target.value})}
                             />
                         </div>
-                        <button onClick={handleSaveRule} className="bg-[#1A2A80] text-white p-2.5 rounded hover:bg-blue-900"><FaSave /></button>
+                        <button onClick={handleSaveRule} className="bg-[#1A2A80] text-white p-2.5 rounded hover:bg-blue-900 shadow transition">
+                            <FaSave />
+                        </button>
                     </div>
 
                     <div className="max-h-60 overflow-y-auto border rounded-lg">
                         <table className="w-full text-sm">
-                            <thead className="bg-gray-50 text-gray-500 font-bold">
-                                <tr><td className="px-4 py-2">Periode</td><td className="px-4 py-2">Batas Honor</td><td className="px-4 py-2 text-right">Aksi</td></tr>
+                            <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-xs">
+                                <tr>
+                                    <td className="px-4 py-2">Tahun</td>
+                                    <td className="px-4 py-2">Batas Nominal</td>
+                                    <td className="px-4 py-2 text-right">Aksi</td>
+                                </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {loadingRules ? <tr><td colSpan="3" className="p-4 text-center text-gray-400">Loading...</td></tr> : 
+                                 rules.length === 0 ? <tr><td colSpan="3" className="p-4 text-center text-gray-400 italic">Belum ada aturan.</td></tr> :
                                  rules.map(r => (
-                                    <tr key={r.id}>
-                                        <td className="px-4 py-2 font-medium">{formatPeriodeLabel(r.periode)}</td>
+                                    <tr key={r.id} className="hover:bg-gray-50">
+                                        {/* Menampilkan r.tahun dari response backend */}
+                                        <td className="px-4 py-2 font-bold text-gray-800">{r.tahun || r.periode}</td>
                                         <td className="px-4 py-2 text-green-600 font-bold">Rp {Number(r.batas_honor).toLocaleString('id-ID')}</td>
-                                        <td className="px-4 py-2 text-right"><button onClick={() => handleDeleteRule(r.id)} className="text-red-400 hover:text-red-600"><FaTrash size={12}/></button></td>
+                                        <td className="px-4 py-2 text-right">
+                                            <button onClick={() => handleDeleteRule(r.id)} className="text-red-400 hover:text-red-600 transition">
+                                                <FaTrash size={12}/>
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

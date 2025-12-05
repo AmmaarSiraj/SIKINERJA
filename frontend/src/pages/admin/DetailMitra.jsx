@@ -1,3 +1,4 @@
+// src/pages/admin/DetailMitra.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -19,7 +20,7 @@ const DetailMitra = () => {
   // State Keuangan (Kalkulasi Honor)
   const [totalPendapatan, setTotalPendapatan] = useState(0);
   const [limitPendapatan, setLimitPendapatan] = useState(0);
-  const [currentPeriodLabel, setCurrentPeriodLabel] = useState('');
+  const [currentYearLabel, setCurrentYearLabel] = useState('');
 
   // State Riwayat
   const [historyData, setHistoryData] = useState({});
@@ -35,9 +36,10 @@ const DetailMitra = () => {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
 
+        // 1. Tentukan Tahun Aktif
         const now = new Date();
-        const currentPeriod = now.toISOString().slice(0, 7); 
-        setCurrentPeriodLabel(now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }));
+        const currentYear = now.getFullYear().toString(); // "2025"
+        setCurrentYearLabel(currentYear);
 
         const [resMitra, resKelompok, resPenugasan, resSub, resHonor, resJabatan, resAturan] = await Promise.all([
           axios.get(`${API_URL}/api/mitra/${id}`, { headers }),
@@ -51,30 +53,37 @@ const DetailMitra = () => {
 
         setMitra(resMitra.data);
 
-        // 1. Map Data Pendukung
+        // 2. Map Data Pendukung
         const jobMap = {};
         resJabatan.data.forEach(j => { jobMap[j.kode_jabatan] = j.nama_jabatan; });
 
         const subMap = {};
         resSub.data.forEach(s => {
+            // Ambil tahun dari periode sub kegiatan (misal: "2025-02" -> "2025")
+            const yearStr = s.periode ? s.periode.split('-')[0] : 'Unknown';
             subMap[s.id] = { 
                 nama: s.nama_sub_kegiatan, 
                 induk: s.nama_kegiatan, 
-                periode: s.periode 
+                periodeFull: s.periode,
+                tahun: yearStr
             };
         });
 
         const penugasanMap = {}; 
         resPenugasan.data.forEach(p => penugasanMap[p.id_penugasan] = p.id_subkegiatan);
 
-        // Map Aturan Periode (Periode -> Limit)
+        // 3. Map Aturan Batas Honor (Key = TAHUN)
         const ruleMap = {};
-        resAturan.data.forEach(r => { ruleMap[r.periode] = Number(r.batas_honor); });
+        resAturan.data.forEach(r => { 
+            // Backend mengirim 'tahun' atau 'periode' (4 digit)
+            const yearKey = r.tahun || r.periode;
+            ruleMap[String(yearKey)] = Number(r.batas_honor); 
+        });
 
-        // Set Limit Periode Ini
-        setLimitPendapatan(ruleMap[currentPeriod] || 0);
+        // Set Limit Tahun Ini
+        setLimitPendapatan(ruleMap[currentYear] || 0);
 
-        // 2. Filter & Grouping Tugas
+        // 4. Filter & Grouping Tugas Berdasarkan TAHUN
         const currentTasksArr = [];
         let currentTotal = 0;
         const historyGroup = {};
@@ -88,7 +97,14 @@ const DetailMitra = () => {
             if (!subInfo) return;
 
             const honorRule = resHonor.data.find(h => h.id_subkegiatan == idSub && h.kode_jabatan === k.kode_jabatan);
-            const tarif = honorRule ? Number(honorRule.tarif) : 0;
+            const tarifSatuan = honorRule ? Number(honorRule.tarif) : 0;
+            
+            // Hitung Total: Tarif x Volume
+            const vol = k.volume_tugas ? Number(k.volume_tugas) : 0;
+            // Fallback volume 1 jika data lama belum punya volume
+            const multiplier = vol > 0 ? vol : 1; 
+            const totalHonorTugas = tarifSatuan * multiplier;
+
             const namaJabatan = jobMap[k.kode_jabatan] || k.kode_jabatan || 'Anggota';
 
             const taskItem = {
@@ -96,22 +112,27 @@ const DetailMitra = () => {
                 kegiatan: subInfo.nama,
                 induk: subInfo.induk,
                 jabatan: namaJabatan,
-                tarif: tarif
+                tarifSatuan: tarifSatuan,
+                volume: vol,
+                totalHonor: totalHonorTugas,
+                periodeLabel: subInfo.periodeFull // Untuk display detail
             };
 
-            if (subInfo.periode === currentPeriod) {
+            // Cek apakah tugas ini masuk Tahun Berjalan atau Riwayat
+            if (subInfo.tahun === currentYear) {
                 currentTasksArr.push(taskItem);
-                currentTotal += tarif;
+                currentTotal += totalHonorTugas;
             } else {
-                if (!historyGroup[subInfo.periode]) {
-                    historyGroup[subInfo.periode] = { 
+                // Grouping History per Tahun
+                if (!historyGroup[subInfo.tahun]) {
+                    historyGroup[subInfo.tahun] = { 
                         tasks: [], 
                         total: 0,
-                        limit: ruleMap[subInfo.periode] || 0 
+                        limit: ruleMap[subInfo.tahun] || 0 
                     };
                 }
-                historyGroup[subInfo.periode].tasks.push(taskItem);
-                historyGroup[subInfo.periode].total += tarif;
+                historyGroup[subInfo.tahun].tasks.push(taskItem);
+                historyGroup[subInfo.tahun].total += totalHonorTugas;
             }
         });
 
@@ -139,32 +160,25 @@ const DetailMitra = () => {
     } catch (err) { alert("Gagal menghapus."); }
   };
 
-  const toggleHistory = (periode) => {
-    setExpandedHistory(expandedHistory === periode ? null : periode);
+  const toggleHistory = (yearKey) => {
+    setExpandedHistory(expandedHistory === yearKey ? null : yearKey);
   };
 
-  const formatPeriodeLabel = (periodeStr) => {
-    if (!periodeStr) return 'Periode Lama';
-    const parts = periodeStr.split('-');
-    if (parts.length === 2) {
-      const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1);
-      return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-    }
-    return periodeStr;
-  };
-
-  // --- Helper Baru untuk Format Gender ---
+  // Helper Format Gender
   const formatGender = (val) => {
     if (val === 'Lk') return 'Laki-laki';
     if (val === 'Pr') return 'Perempuan';
     return val || '-';
   };
-  // -------------------------------------
 
   const getProgressColor = (percent) => {
     if (percent >= 100) return 'bg-red-600';
     if (percent >= 80) return 'bg-yellow-500';
     return 'bg-green-500';
+  };
+
+  const formatRupiah = (num) => {
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
   };
 
   if (loading) return <div className="text-center py-10 text-gray-500">Memuat detail...</div>;
@@ -185,7 +199,6 @@ const DetailMitra = () => {
       {/* CARD 1: INFORMASI PROFIL & LATAR BELAKANG */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8">
         
-        {/* Header Profil */}
         <div className="px-8 py-6 bg-gray-50/50 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center text-[#1A2A80] text-3xl shadow-sm border border-blue-100"><FaUserTie /></div>
@@ -203,9 +216,7 @@ const DetailMitra = () => {
             </div>
         </div>
 
-        {/* Content Grid */}
         <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-12">
-            
             {/* KOLOM KIRI: Data Pribadi */}
             <div>
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-2 border-b border-gray-100 pb-2"><FaIdCard /> Data Pribadi</h3>
@@ -218,7 +229,6 @@ const DetailMitra = () => {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1"><FaVenusMars size={12}/> Jenis Kelamin</label>
-                            {/* Menggunakan helper formatGender di sini */}
                             <p className="text-sm font-medium text-gray-900">{formatGender(mitra.jenis_kelamin)}</p>
                         </div>
                         <div>
@@ -238,7 +248,6 @@ const DetailMitra = () => {
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-2 border-b border-gray-100 pb-2"><FaBriefcase /> Latar Belakang & Performa</h3>
                 
                 <div className="space-y-6">
-                    {/* Info Pendidikan & Pekerjaan */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs text-gray-500 mb-1 font-medium flex items-center gap-1"><FaGraduationCap size={12}/> Pendidikan</label>
@@ -256,16 +265,16 @@ const DetailMitra = () => {
                         </div>
                     )}
 
-                    {/* Progress Honor Periode Ini */}
+                    {/* Progress Honor Tahun Ini */}
                     <div className="mt-6 pt-6 border-t border-gray-100">
                         <label className="block text-xs text-gray-500 mb-3 font-medium flex justify-between items-center">
-                            <span className="flex items-center gap-1 uppercase font-bold text-gray-400"><FaCoins size={12} /> Akumulasi Honor ({currentPeriodLabel})</span>
-                            {limitPendapatan > 0 && <span className="text-[10px] bg-blue-50 px-2 py-0.5 rounded text-blue-600 font-bold border border-blue-100">Max: Rp {limitPendapatan.toLocaleString('id-ID')}</span>}
+                            <span className="flex items-center gap-1 uppercase font-bold text-gray-400"><FaCoins size={12} /> Akumulasi Honor Tahun {currentYearLabel}</span>
+                            {limitPendapatan > 0 && <span className="text-[10px] bg-blue-50 px-2 py-0.5 rounded text-blue-600 font-bold border border-blue-100">Batas: {formatRupiah(limitPendapatan)}</span>}
                         </label>
                         
                         <div className="flex items-baseline gap-1 mb-2">
-                            <span className="text-3xl font-extrabold text-gray-800">Rp {totalPendapatan.toLocaleString('id-ID')}</span>
-                            <span className="text-xs text-gray-400 font-medium">dari estimasi tugas</span>
+                            <span className="text-3xl font-extrabold text-gray-800">{formatRupiah(totalPendapatan)}</span>
+                            <span className="text-xs text-gray-400 font-medium">total tahun berjalan</span>
                         </div>
 
                         {limitPendapatan > 0 ? (
@@ -280,7 +289,7 @@ const DetailMitra = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2 text-xs text-yellow-600 bg-yellow-50 p-2 rounded border border-yellow-100"><FaExclamationCircle /> Batas honor periode ini belum diatur.</div>
+                            <div className="flex items-center gap-2 text-xs text-yellow-600 bg-yellow-50 p-2 rounded border border-yellow-100"><FaExclamationCircle /> Batas honor tahun ini belum diatur.</div>
                         )}
                     </div>
                 </div>
@@ -292,59 +301,72 @@ const DetailMitra = () => {
         </div>
       </div>
 
-      {/* CARD 2: TABEL TUGAS PERIODE INI */}
+      {/* CARD 2: TABEL TUGAS TAHUN INI */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8">
         <div className="px-8 py-5 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
             <FaCalendarAlt className="text-[#1A2A80]" />
-            <h3 className="font-bold text-gray-800">Daftar Tugas Periode Ini ({currentPeriodLabel})</h3>
+            <h3 className="font-bold text-gray-800">Daftar Tugas Tahun Ini ({currentYearLabel})</h3>
         </div>
         <div className="overflow-x-auto">
             <table className="min-w-full text-sm text-left">
                 <thead className="bg-white border-b border-gray-100">
                     <tr>
                         <th className="px-8 py-3 font-bold text-gray-500">Nama Kegiatan / Sub</th>
-                        <th className="px-8 py-3 font-bold text-gray-500">Peran / Jabatan</th>
-                        <th className="px-8 py-3 font-bold text-gray-500 text-right">Estimasi Honor</th>
+                        <th className="px-8 py-3 font-bold text-gray-500 text-center">Periode</th>
+                        <th className="px-8 py-3 font-bold text-gray-500">Peran & Volume</th>
+                        <th className="px-8 py-3 font-bold text-gray-500 text-right">Total Honor</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                     {tasks.length === 0 ? (
-                        <tr><td colSpan="3" className="px-8 py-8 text-center text-gray-400 italic">Belum ada tugas periode ini.</td></tr>
+                        <tr><td colSpan="4" className="px-8 py-8 text-center text-gray-400 italic">Belum ada tugas di tahun ini.</td></tr>
                     ) : (
                         tasks.map((task, idx) => (
                             <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
-                                <td className="px-8 py-4 font-medium text-gray-800">{task.kegiatan}<div className="text-[10px] text-gray-400 font-normal">{task.induk}</div></td>
-                                <td className="px-8 py-4"><span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"><FaBriefcase size={10} /> {task.jabatan}</span></td>
-                                <td className="px-8 py-4 text-right font-bold text-green-600">Rp {task.tarif.toLocaleString('id-ID')}</td>
+                                <td className="px-8 py-4 font-medium text-gray-800">
+                                    {task.kegiatan}
+                                    <div className="text-[10px] text-gray-400 font-normal">{task.induk}</div>
+                                </td>
+                                <td className="px-8 py-4 text-center">
+                                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-mono">{task.periodeLabel}</span>
+                                </td>
+                                <td className="px-8 py-4">
+                                    <span className="block font-bold text-blue-800">{task.jabatan}</span>
+                                    <span className="text-xs text-gray-500">Vol: {task.volume} x {formatRupiah(task.tarifSatuan)}</span>
+                                </td>
+                                <td className="px-8 py-4 text-right font-bold text-green-600">{formatRupiah(task.totalHonor)}</td>
                             </tr>
                         ))
                     )}
                 </tbody>
                 {tasks.length > 0 && (
                     <tfoot className="bg-gray-50 border-t border-gray-200">
-                        <tr><td colSpan="2" className="px-8 py-3 text-right font-bold text-gray-600">Total:</td><td className="px-8 py-3 text-right font-extrabold text-green-700">Rp {totalPendapatan.toLocaleString('id-ID')}</td></tr>
+                        <tr>
+                            <td colSpan="3" className="px-8 py-3 text-right font-bold text-gray-600">Total Tahun {currentYearLabel}:</td>
+                            <td className="px-8 py-3 text-right font-extrabold text-green-700">{formatRupiah(totalPendapatan)}</td>
+                        </tr>
                     </tfoot>
                 )}
             </table>
         </div>
       </div>
 
-      {/* CARD 3: RIWAYAT PENUGASAN (ACCORDION) */}
+      {/* CARD 3: RIWAYAT PENUGASAN TAHUN LALU (ACCORDION) */}
       <div className="space-y-4">
-        <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2 px-2"><FaHistory /> Riwayat Penugasan Sebelumnya</h3>
+        <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2 px-2"><FaHistory /> Riwayat Penugasan Tahun Sebelumnya</h3>
         
         {Object.keys(historyData).length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 italic shadow-sm">Belum ada riwayat penugasan masa lalu.</div>
+            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 italic shadow-sm">Belum ada riwayat penugasan tahun lalu.</div>
         ) : (
-            Object.keys(historyData).sort().reverse().map(periodeKey => {
-                const group = historyData[periodeKey];
-                const isOpen = expandedHistory === periodeKey;
+            Object.keys(historyData).sort().reverse().map(yearKey => {
+                const group = historyData[yearKey];
+                const isOpen = expandedHistory === yearKey;
 
                 return (
-                    <div key={periodeKey} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div key={yearKey} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                         
                         <div 
-                            onClick={() => toggleHistory(periodeKey)}
+                            onClick={() => toggleHistory(yearKey)}
                             className={`px-6 py-4 flex justify-between items-center cursor-pointer transition-colors ${isOpen ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                         >
                             <div className="flex items-center gap-4">
@@ -352,15 +374,15 @@ const DetailMitra = () => {
                                     <FaCalendarAlt />
                                 </div>
                                 <div>
-                                    <h4 className="font-bold text-gray-800 text-lg">{formatPeriodeLabel(periodeKey)}</h4>
+                                    <h4 className="font-bold text-gray-800 text-lg">Tahun {yearKey}</h4>
                                     <p className="text-xs text-gray-500">{group.tasks.length} Kegiatan Selesai</p>
                                 </div>
                             </div>
                             <div className="text-right">
                                 <p className="text-sm font-bold text-green-600">
-                                    Rp {group.total.toLocaleString('id-ID')} 
+                                    {formatRupiah(group.total)} 
                                     <span className="text-gray-400 text-xs font-normal ml-1">
-                                       / Batas: {group.limit > 0 ? `Rp ${group.limit.toLocaleString('id-ID')}` : '-'}
+                                       / Batas: {group.limit > 0 ? formatRupiah(group.limit) : '-'}
                                     </span>
                                 </p>
                                 <div className="text-gray-400 mt-1 flex justify-end">{isOpen ? <FaChevronUp /> : <FaChevronDown />}</div>
@@ -373,7 +395,8 @@ const DetailMitra = () => {
                                     <thead className="bg-gray-50 text-gray-500">
                                         <tr>
                                             <th className="px-6 py-3 font-semibold">Nama Kegiatan</th>
-                                            <th className="px-6 py-3 font-semibold">Jabatan</th>
+                                            <th className="px-6 py-3 font-semibold">Periode</th>
+                                            <th className="px-6 py-3 font-semibold">Jabatan & Volume</th>
                                             <th className="px-6 py-3 font-semibold text-right">Honor</th>
                                         </tr>
                                     </thead>
@@ -384,8 +407,11 @@ const DetailMitra = () => {
                                                     <span className="font-medium">{task.kegiatan}</span>
                                                     <span className="block text-[10px] text-gray-400">{task.induk}</span>
                                                 </td>
-                                                <td className="px-6 py-3 text-blue-600">{task.jabatan}</td>
-                                                <td className="px-6 py-3 text-right font-mono text-gray-600">Rp {task.tarif.toLocaleString('id-ID')}</td>
+                                                <td className="px-6 py-3 text-gray-600 font-mono text-xs">{task.periodeLabel}</td>
+                                                <td className="px-6 py-3 text-blue-600">
+                                                    {task.jabatan} <span className="text-gray-400 text-xs">({task.volume} vol)</span>
+                                                </td>
+                                                <td className="px-6 py-3 text-right font-mono text-gray-600">{formatRupiah(task.totalHonor)}</td>
                                             </tr>
                                         ))}
                                     </tbody>

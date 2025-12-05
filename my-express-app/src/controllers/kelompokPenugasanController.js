@@ -1,15 +1,12 @@
-// src/controllers/kelompokPenugasanController.js
 const { pool } = require('../config/db');
 
 exports.addMitraToPenugasan = async (req, res) => {
-  // 1. Tambahkan volume_tugas di destructuring body
   const { id_penugasan, id_mitra, kode_jabatan, volume_tugas } = req.body;
 
   if (!id_penugasan || !id_mitra) {
     return res.status(400).json({ error: 'ID Penugasan dan ID Mitra wajib diisi.' });
   }
 
-  // Set default volume jika tidak diisi (misal 0 atau 1, tergantung kebijakan)
   const vol = volume_tugas ? parseInt(volume_tugas) : 0;
 
   let connection;
@@ -27,17 +24,22 @@ exports.addMitraToPenugasan = async (req, res) => {
     if (penugasanInfo.length === 0) throw new Error('Penugasan tidak ditemukan.');
     const { periode, id_subkegiatan } = penugasanInfo[0];
 
+    const tahunKegiatan = periode ? periode.split('-')[0] : null;
+
+    if (!tahunKegiatan) {
+       throw new Error('Periode kegiatan tidak valid.');
+    }
+
     const [rule] = await connection.query(
         'SELECT batas_honor FROM aturan_periode WHERE periode = ?', 
-        [periode]
+        [tahunKegiatan]
     );
     
     if (rule.length === 0) {
-        throw new Error(`Belum ada aturan batas honor untuk periode ${periode}. Hubungi Admin.`);
+        throw new Error(`Belum ada aturan batas honor untuk tahun ${tahunKegiatan}. Hubungi Admin.`);
     }
-    const LIMIT_PERIODE = Number(rule[0].batas_honor);
+    const LIMIT_TAHUNAN = Number(rule[0].batas_honor);
 
-    // 2. Hitung Rencana Pendapatan Baru (Tarif x Volume)
     let tarifSatuan = 0;
     if (kode_jabatan) {
         const [tarifRows] = await connection.query(
@@ -49,27 +51,24 @@ exports.addMitraToPenugasan = async (req, res) => {
 
     const rencanaHonorBaru = tarifSatuan * vol;
 
-    // 3. Hitung Total Pendapatan Mitra Saat Ini di Periode Tersebut
-    // Perhatikan: Kita juga harus mengalikan tarif * volume_tugas untuk data historis
     const [histori] = await connection.query(`
         SELECT SUM(h.tarif * kp.volume_tugas) as total_pendapatan
         FROM kelompok_penugasan kp
         JOIN penugasan p ON kp.id_penugasan = p.id
         JOIN subkegiatan s ON p.id_subkegiatan = s.id
         JOIN honorarium h ON (h.id_subkegiatan = s.id AND h.kode_jabatan = kp.kode_jabatan)
-        WHERE kp.id_mitra = ? AND s.periode = ?
-    `, [id_mitra, periode]);
+        WHERE kp.id_mitra = ? AND LEFT(s.periode, 4) = ?
+    `, [id_mitra, tahunKegiatan]);
 
     const currentTotal = Number(histori[0].total_pendapatan || 0);
 
-    if ((currentTotal + rencanaHonorBaru) > LIMIT_PERIODE) {
+    if ((currentTotal + rencanaHonorBaru) > LIMIT_TAHUNAN) {
         const formatRupiah = (n) => 'Rp ' + n.toLocaleString('id-ID');
         throw new Error(
-            `Gagal! Total honor mitra akan menjadi ${formatRupiah(currentTotal + rencanaHonorBaru)}, melebihi batas periode ${periode} sebesar ${formatRupiah(LIMIT_PERIODE)}.`
+            `Gagal! Total honor mitra di tahun ${tahunKegiatan} akan menjadi ${formatRupiah(currentTotal + rencanaHonorBaru)}, melebihi batas tahunan sebesar ${formatRupiah(LIMIT_TAHUNAN)}.`
         );
     }
 
-    // 4. Insert Data dengan Volume Tugas
     const sql = 'INSERT INTO kelompok_penugasan (id_penugasan, id_mitra, kode_jabatan, volume_tugas) VALUES (?, ?, ?, ?)';
     const [result] = await connection.query(sql, [id_penugasan, id_mitra, kode_jabatan || null, vol]);
     
@@ -111,7 +110,6 @@ exports.removeMitraFromPenugasan = async (req, res) => {
 
 exports.getAllKelompokPenugasan = async (req, res) => {
   try {
-    // Tambahkan kp.volume_tugas di SELECT
     const sql = `
         SELECT 
           kp.id AS id_kelompok,
@@ -140,7 +138,7 @@ exports.getAllKelompokPenugasan = async (req, res) => {
 };
 
 exports.updateKelompokPenugasan = async (req, res) => {
-  const { id } = req.params; // ID Kelompok (bukan ID Mitra)
+  const { id } = req.params; 
   const { kode_jabatan, volume_tugas } = req.body;
 
   if (!kode_jabatan || !volume_tugas) {
@@ -152,7 +150,6 @@ exports.updateKelompokPenugasan = async (req, res) => {
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
-    // 1. Ambil Data Lama
     const [oldData] = await connection.query(`
         SELECT kp.*, s.periode, s.id as id_subkegiatan, h.tarif as old_tarif
         FROM kelompok_penugasan kp
@@ -165,7 +162,9 @@ exports.updateKelompokPenugasan = async (req, res) => {
     if (oldData.length === 0) throw new Error('Data anggota tidak ditemukan.');
     const current = oldData[0];
 
-    // 2. Ambil Tarif Baru
+    const tahunKegiatan = current.periode ? current.periode.split('-')[0] : null;
+    if (!tahunKegiatan) throw new Error('Periode kegiatan tidak valid.');
+
     const [newHonor] = await connection.query(
         'SELECT tarif FROM honorarium WHERE id_subkegiatan = ? AND kode_jabatan = ?',
         [current.id_subkegiatan, kode_jabatan]
@@ -175,30 +174,28 @@ exports.updateKelompokPenugasan = async (req, res) => {
     
     const honorLamaTotal = Number(current.old_tarif || 0) * Number(current.volume_tugas);
 
-    // 3. Cek Limit Periode
-    const [rule] = await connection.query('SELECT batas_honor FROM aturan_periode WHERE periode = ?', [current.periode]);
+    const [rule] = await connection.query('SELECT batas_honor FROM aturan_periode WHERE periode = ?', [tahunKegiatan]);
+    
     if (rule.length > 0) {
         const limit = Number(rule[0].batas_honor);
         
-        // Hitung total pendapatan user saat ini di periode tsb
         const [histori] = await connection.query(`
             SELECT SUM(h.tarif * kp.volume_tugas) as total
             FROM kelompok_penugasan kp
             JOIN penugasan p ON kp.id_penugasan = p.id
             JOIN subkegiatan s ON p.id_subkegiatan = s.id
             JOIN honorarium h ON (h.id_subkegiatan = s.id AND h.kode_jabatan = kp.kode_jabatan)
-            WHERE kp.id_mitra = ? AND s.periode = ?
-        `, [current.id_mitra, current.periode]);
+            WHERE kp.id_mitra = ? AND LEFT(s.periode, 4) = ?
+        `, [current.id_mitra, tahunKegiatan]);
         
         const totalSekarang = Number(histori[0].total || 0);
         const prediksiTotal = (totalSekarang - honorLamaTotal) + honorBaruTotal;
 
         if (prediksiTotal > limit) {
-            throw new Error(`Gagal Update! Total honor akan melebihi batas Rp ${limit.toLocaleString('id-ID')}`);
+            throw new Error(`Gagal Update! Total honor tahunan akan melebihi batas Rp ${limit.toLocaleString('id-ID')}`);
         }
     }
 
-    // 4. Update Database
     await connection.query(
         'UPDATE kelompok_penugasan SET kode_jabatan = ?, volume_tugas = ? WHERE id = ?',
         [kode_jabatan, volume_tugas, id]

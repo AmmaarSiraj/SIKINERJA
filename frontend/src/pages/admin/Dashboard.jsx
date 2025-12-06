@@ -39,7 +39,7 @@ const AdminDashboard = () => {
         const headers = { Authorization: `Bearer ${token}` };
 
         const [resPengajuan, resKegiatan, resMitra, resPenugasan, resKelompok] = await Promise.all([
-          axios.get(`${API_URL}/api/pengajuan-mitra`, { headers }),
+          axios.get(`${API_URL}/api/manajemen-mitra`, { headers }),
           axios.get(`${API_URL}/api/kegiatan`, { headers }),
           axios.get(`${API_URL}/api/mitra`, { headers }),
           axios.get(`${API_URL}/api/penugasan`, { headers }),

@@ -1,10 +1,12 @@
+// src/pages/admin/AddMitra.jsx
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import { 
   FaArrowLeft, FaUserTie, FaIdCard, FaPhone, FaEnvelope, 
-  FaMapMarkerAlt, FaSave, FaCheck, FaVenusMars, FaGraduationCap, FaBriefcase, FaIdBadge
+  FaMapMarkerAlt, FaSave, FaCheck, FaVenusMars, FaGraduationCap, FaBriefcase, FaIdBadge,
+  FaCalendarAlt
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -23,7 +25,9 @@ const AddMitra = () => {
     jenis_kelamin: '',
     pendidikan: '',
     pekerjaan: '',
-    deskripsi_pekerjaan_lain: ''
+    deskripsi_pekerjaan_lain: '',
+    // Default tahun pendaftaran ke tahun saat ini
+    tahun_daftar: new Date().getFullYear().toString()
   });
 
   const handleChange = (e) => {
@@ -34,30 +38,46 @@ const AddMitra = () => {
     e.preventDefault();
     setLoading(true);
 
-    if (!formData.nama_lengkap || !formData.nik || !formData.no_hp) {
+    if (!formData.nama_lengkap || !formData.nik || !formData.no_hp || !formData.tahun_daftar) {
         setLoading(false);
-        return Swal.fire('Gagal', 'Nama Lengkap, NIK, dan No HP wajib diisi.', 'warning');
+        return Swal.fire('Gagal', 'Nama Lengkap, NIK, No HP, dan Tahun wajib diisi.', 'warning');
+    }
+
+    // Validasi format tahun (4 digit)
+    if (!/^\d{4}$/.test(formData.tahun_daftar)) {
+        setLoading(false);
+        return Swal.fire('Gagal', 'Format tahun harus 4 digit angka (misal: 2025).', 'warning');
     }
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/api/mitra`, formData, {
+      
+      // Kirim data ke backend
+      const response = await axios.post(`${API_URL}/api/mitra`, formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
+      // Tampilkan pesan sukses dari backend (bisa "Mitra baru" atau "Mitra lama diperbarui")
       Swal.fire({
         title: 'Berhasil!',
-        text: 'Mitra baru berhasil ditambahkan.',
+        text: response.data.message || 'Mitra berhasil didaftarkan.',
         icon: 'success',
-        timer: 1500,
+        timer: 2000,
         showConfirmButton: false
       }).then(() => {
-        navigate('/admin/pengajuan-mitra');
+        navigate('/admin/manajemen-mitra');
       });
 
     } catch (err) {
       console.error(err);
-      Swal.fire('Gagal', err.response?.data?.error || 'Terjadi kesalahan saat menyimpan.', 'error');
+      // Tangkap pesan error spesifik dari backend (misal: "Sudah terdaftar aktif tahun ini")
+      const errorMsg = err.response?.data?.error || 'Terjadi kesalahan saat menyimpan.';
+      
+      if (err.response?.status === 409) {
+          Swal.fire('Duplikat', errorMsg, 'warning');
+      } else {
+          Swal.fire('Gagal', errorMsg, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -68,14 +88,14 @@ const AddMitra = () => {
       
       <div className="flex items-center gap-4 mb-6">
         <Link 
-          to="/admin/pengajuan-mitra" 
+          to="/admin/manajemen-mitra" 
           className="text-gray-500 hover:text-[#1A2A80] transition p-2 rounded-full hover:bg-gray-100"
         >
           <FaArrowLeft size={18} />
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Tambah Mitra Baru</h1>
-          <p className="text-sm text-gray-500">Formulir pendaftaran mitra statistik secara manual.</p>
+          <p className="text-sm text-gray-500">Pendaftaran mitra statistik manual untuk tahun tertentu.</p>
         </div>
       </div>
 
@@ -91,6 +111,24 @@ const AddMitra = () => {
             <div className="space-y-5">
                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b pb-2 mb-4">Data Pribadi</h4>
                 
+                {/* Input Tahun Aktif (Paling Atas agar terlihat jelas) */}
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <label className="block text-sm font-bold text-blue-800 mb-1">Tahun Pendaftaran <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-3 text-blue-400"><FaCalendarAlt /></span>
+                        <input 
+                            type="number" name="tahun_daftar"
+                            min="2000" max="2099"
+                            className="w-full pl-10 pr-4 py-2.5 border border-blue-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none transition font-bold text-blue-900"
+                            placeholder="2025"
+                            value={formData.tahun_daftar} onChange={handleChange} required
+                        />
+                    </div>
+                    <p className="text-xs text-blue-600 mt-1">
+                        *Jika NIK sudah ada, data profil akan diperbarui & diaktifkan untuk tahun ini.
+                    </p>
+                </div>
+
                 <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Nama Lengkap <span className="text-red-500">*</span></label>
                     <div className="relative">
@@ -191,7 +229,6 @@ const AddMitra = () => {
                     </div>
                 </div>
 
-                {/* --- UPDATE BAGIAN INI: DROPDOWN PENDIDIKAN --- */}
                 <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Pendidikan Terakhir</label>
                     <div className="relative">
@@ -202,11 +239,8 @@ const AddMitra = () => {
                             value={formData.pendidikan} onChange={handleChange}
                         >
                             <option value="">-- Pilih Pendidikan --</option>
-                            {/* Opsi yang diminta */}
                             <option value="Tamat SMA/Sederajat">Tamat SMA/Sederajat</option>
                             <option value="Tamat D4/S1">Tamat D4/S1</option>
-                            
-                            {/* Opsi tambahan untuk kelengkapan (opsional) */}
                             <option value="Tamat SD/Sederajat">Tamat SD/Sederajat</option>
                             <option value="Tamat SMP/Sederajat">Tamat SMP/Sederajat</option>
                             <option value="Tamat D1/D2/D3">Tamat D1/D2/D3</option>
@@ -216,7 +250,6 @@ const AddMitra = () => {
                         </select>
                     </div>
                 </div>
-                {/* ----------------------------------------------- */}
 
                 <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Pekerjaan Utama</label>
@@ -247,7 +280,7 @@ const AddMitra = () => {
         <div className="px-8 py-5 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
             <button 
                 type="button"
-                onClick={() => navigate('/admin/pengajuan-mitra')}
+                onClick={() => navigate('/admin/manajemen-mitra')}
                 className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-600 font-bold hover:bg-gray-100 transition"
             >
                 Batal
@@ -257,7 +290,7 @@ const AddMitra = () => {
                 disabled={loading}
                 className="px-8 py-2.5 rounded-lg bg-[#1A2A80] text-white font-bold hover:bg-blue-900 transition shadow-lg flex items-center gap-2 disabled:opacity-50"
             >
-                {loading ? 'Menyimpan...' : <><FaCheck /> Simpan Mitra</>}
+                {loading ? 'Menyimpan...' : <><FaCheck /> Simpan & Aktifkan</>}
             </button>
         </div>
 

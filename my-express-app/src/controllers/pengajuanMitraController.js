@@ -10,7 +10,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// POST /api/pengajuan-mitra
+// POST /api/manajemen-mitra
 // Membuat pengajuan baru
 exports.createPengajuan = async (req, res) => {
   // Ambil semua data dari body
@@ -86,7 +86,7 @@ exports.createPengajuan = async (req, res) => {
   }
 };
 
-// GET /api/pengajuan-mitra/user/:id_user
+// GET /api/manajemen-mitra/user/:id_user
 // Cek status pengajuan user
 exports.getPengajuanByUserId = async (req, res) => {
   const { id_user } = req.params;

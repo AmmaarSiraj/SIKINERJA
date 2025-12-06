@@ -22,7 +22,7 @@ const menuItems = [
   { path: "/admin/manage-users", label: "Manajemen User", icon: <FaUsers /> },
   { path: "/admin/manage-kegiatan", label: "Survei/Sensus", icon: <FaClipboardList /> },
   { path: "/admin/penugasan", label: "Penugasan", icon: <FaHandshake /> },
-  { path: "/admin/pengajuan-mitra", label: "Manajemen Mitra", icon: <FaUserCheck /> },
+  { path: "/admin/manajemen-mitra", label: "Manajemen Mitra", icon: <FaUserCheck /> },
   { path: "/admin/laporan", label: "Template Laporan", icon: <FaFileAlt /> },
   { path: "/admin/manajemen-jabatan", label: "Manajemen Jabatan", icon: <FaFileAlt /> },
   { path: "/admin/manajemen-spk", label: "Manajemen SPK", icon: <FaFileContract /> },

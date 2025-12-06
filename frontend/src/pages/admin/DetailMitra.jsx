@@ -156,7 +156,7 @@ const DetailMitra = () => {
     try {
         const token = localStorage.getItem('token');
         await axios.delete(`${API_URL}/api/mitra/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-        navigate('/admin/pengajuan-mitra');
+        navigate('/admin/manajemen-mitra');
     } catch (err) { alert("Gagal menghapus."); }
   };
 
@@ -191,7 +191,7 @@ const DetailMitra = () => {
     <div className="max-w-5xl mx-auto w-full pb-20">
       
       <div className="mb-6">
-        <Link to="/admin/pengajuan-mitra" className="inline-flex items-center gap-2 text-gray-500 hover:text-[#1A2A80] transition font-medium">
+        <Link to="/admin/manajemen-mitra" className="inline-flex items-center gap-2 text-gray-500 hover:text-[#1A2A80] transition font-medium">
           <FaArrowLeft size={14} /> Kembali ke Daftar Mitra
         </Link>
       </div>

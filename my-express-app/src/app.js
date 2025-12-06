@@ -29,7 +29,7 @@ app.use('/api/subkegiatan', subKegiatanRoutes);
 app.use('/api/penugasan', penugasanRoutes);
 app.use('/api/kelompok-penugasan', kelompokPenugasanRoutes);
 app.use('/api/honorarium', honorariumRoutes);
-app.use('/api/pengajuan-mitra', pengajuanMitraRoutes);
+app.use('/api/manajemen-mitra', pengajuanMitraRoutes);
 app.use('/api/laporan-form', laporanFormRoutes);
 app.use('/api/jabatan-mitra', jabatanMitraRoutes);
 app.use('/api/satuan', satuanRoutes);

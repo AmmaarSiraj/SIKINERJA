@@ -43,7 +43,7 @@ const LengkapiProfile = () => {
         // Cek apakah user sudah pernah mengajukan
         try {
           const response = await axios.get(
-            `${API_URL}/api/pengajuan-mitra/user/${user.id}`
+            `${API_URL}/api/manajemen-mitra/user/${user.id}`
           );
           // Jika data ditemukan, set statusnya
           setStatusPengajuan(response.data.status);
@@ -82,7 +82,7 @@ const LengkapiProfile = () => {
     try {
       // 2. Kirim data ke endpoint PENGUSULAN
       // (Kita tidak perlu token karena authMiddleware sudah dihapus)
-      await axios.post(`${API_URL}/api/pengajuan-mitra`, formData);
+      await axios.post(`${API_URL}/api/manajemen-mitra`, formData);
 
       // 3. Jika sukses, update status & arahkan ke home
       setStatusPengajuan('pending'); // Set status di frontend

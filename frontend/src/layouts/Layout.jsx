@@ -38,7 +38,7 @@ const Layout = () => {
           // 2. Cek apakah ada di tabel 'pengajuan_mitra'
           try {
             const pengajuanRes = await axios.get(
-              `${API_URL}/api/pengajuan-mitra/user/${user.id}`
+              `${API_URL}/api/manajemen-mitra/user/${user.id}`
             );
             
             const { status } = pengajuanRes.data;

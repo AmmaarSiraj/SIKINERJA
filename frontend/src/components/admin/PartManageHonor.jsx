@@ -1,304 +1,303 @@
 // src/components/admin/PartManageHonor.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-// 1. IMPORT ICON
-import { 
-  FaMoneyBillWave, 
-  FaSave, 
-  FaTrash, 
-  FaSyncAlt, 
-  FaExclamationCircle,
-  FaCheckCircle 
-} from 'react-icons/fa';
+import { FaTrash, FaPlus, FaCoins, FaTag, FaSave } from 'react-icons/fa';
+import Swal from 'sweetalert2';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-const getToken = () => localStorage.getItem('token');
 
-const PartManageHonor = ({ kegiatanId }) => {
-  const [subKegiatans, setSubKegiatans] = useState([]);
-  const [listSatuan, setListSatuan] = useState([]);
+const PartManageHonor = ({ idSubKegiatan, initialData, onRefresh }) => {
+  const [honorList, setHonorList] = useState([]);
+  const [jabatanOptions, setJabatanOptions] = useState([]);
+  const [satuanOptions, setSatuanOptions] = useState([]);
   
-  // State untuk menyimpan nilai input per sub-kegiatan
-  // Format Map: { subId: { id_honor, tarif, id_satuan, basis_volume, isNew } }
-  const [inputsMap, setInputsMap] = useState({});
+  // State untuk form tambah baru
+  const [newHonor, setNewHonor] = useState({
+    kode_jabatan: '',
+    tarif: 0,
+    id_satuan: 1,
+    basis_volume: 1,
+    beban_anggaran: '' // Pastikan field ini ada di state awal
+  });
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+  // Sinkronisasi data saat props berubah (setelah refresh dari parent)
+  useEffect(() => {
+    if (initialData) {
+      setHonorList(initialData);
+    }
+  }, [initialData]);
 
-  // Helper Notifikasi
-  const showSuccess = (msg) => {
-    setSuccess(msg);
-    setTimeout(() => setSuccess(null), 3000);
-  };
-  const showError = (msg) => {
-    setError(msg);
-    setTimeout(() => setError(null), 3000);
-  };
-
-  // --- FETCH DATA ---
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const token = getToken();
-    const headers = { Authorization: `Bearer ${token}` };
-
-    try {
-      // 1. Ambil Referensi Satuan & Data Sub Kegiatan
-      const [resSatuan, resSub, resHonor] = await Promise.all([
-        axios.get(`${API_URL}/api/satuan`, { headers }), // Endpoint satuan dinamis
-        axios.get(`${API_URL}/api/subkegiatan/kegiatan/${kegiatanId}`, { headers }),
-        axios.get(`${API_URL}/api/honorarium`, { headers })
-      ]);
-
-      const satList = resSatuan.data;
-      const subs = resSub.data.data || resSub.data; // Handle format response
-      const honors = resHonor.data;
-
-      setListSatuan(satList);
-      setSubKegiatans(subs);
-
-      // 2. Mapping Data Honor ke State Lokal
-      const initialMap = {};
-      const defaultSatuan = satList.length > 0 ? satList[0].id : 1;
-
-      subs.forEach(sub => {
-        // Cari honor yang sesuai dengan sub kegiatan ini
-        const honor = honors.find(h => h.id_subkegiatan === sub.id);
+  // Fetch Data Master (Jabatan & Satuan)
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const config = { headers: { Authorization: `Bearer ${token}` } };
         
-        if (honor) {
-          // Jika sudah ada honor, isi state dengan data DB
-          initialMap[sub.id] = {
-            id_honor: honor.id_honorarium,
-            tarif: Number(honor.tarif),
-            id_satuan: honor.id_satuan,
-            basis_volume: honor.basis_volume,
-            isNew: false
-          };
-        } else {
-          // Jika belum ada, siapkan state default (Mode Create)
-          initialMap[sub.id] = {
-            id_honor: null,
-            tarif: 0,
-            id_satuan: defaultSatuan,
-            basis_volume: 1,
-            isNew: true
-          };
-        }
+        const [resJab, resSat] = await Promise.all([
+          axios.get(`${API_URL}/api/jabatan-mitra`, config),
+          axios.get(`${API_URL}/api/satuan`, config)
+        ]);
+        
+        setJabatanOptions(resJab.data);
+        setSatuanOptions(resSat.data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Handle Perubahan pada baris yang sudah ada (Existing)
+  const handleExistingChange = (id, field, value) => {
+    setHonorList(honorList.map(h => 
+      h.id_honorarium === id ? { ...h, [field]: value } : h
+    ));
+  };
+
+  // Simpan Perubahan per Baris (Update)
+  const handleUpdate = async (honor) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Payload Update
+      const payload = {
+        id_subkegiatan: idSubKegiatan,
+        kode_jabatan: honor.kode_jabatan,
+        tarif: honor.tarif,
+        id_satuan: honor.id_satuan,
+        basis_volume: honor.basis_volume,
+        beban_anggaran: honor.beban_anggaran // Penting: Kirim data ini
+      };
+
+      await axios.put(`${API_URL}/api/honorarium/${honor.id_honorarium}`, payload, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      setInputsMap(initialMap);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Tersimpan',
+        text: 'Perubahan honorarium berhasil disimpan.',
+        timer: 1500,
+        showConfirmButton: false,
+        position: 'top-end',
+        toast: true
+      });
+      
+      // Refresh data induk agar tampilan sinkron dengan DB
+      if(onRefresh) onRefresh();
 
     } catch (err) {
       console.error(err);
-      setError("Gagal memuat data honorarium.");
-    } finally {
-      setLoading(false);
+      Swal.fire('Gagal', err.response?.data?.error || 'Gagal update honor', 'error');
     }
-  }, [kegiatanId]);
-
-  useEffect(() => {
-    if (kegiatanId) fetchData();
-  }, [fetchData, kegiatanId]);
-
-  // --- HANDLERS ---
-
-  const handleInputChange = (subId, field, value) => {
-    setInputsMap(prev => ({
-      ...prev,
-      [subId]: {
-        ...prev[subId],
-        [field]: value
-      }
-    }));
   };
 
-  const handleSave = async (subId) => {
-    const token = getToken();
-    const data = inputsMap[subId];
-    
-    if (data.tarif <= 0) return showError("Tarif harus lebih dari 0.");
+  // Tambah Honor Baru
+  const handleAdd = async () => {
+    if (!newHonor.kode_jabatan || newHonor.tarif <= 0) {
+      return Swal.fire('Validasi', 'Pilih jabatan dan isi tarif dengan benar.', 'warning');
+    }
 
     try {
-      const payload = {
-        tarif: data.tarif,
-        id_satuan: data.id_satuan,
-        basis_volume: data.basis_volume
-      };
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/api/honorarium`, {
+        id_subkegiatan: idSubKegiatan,
+        ...newHonor // Spread operator akan menyertakan beban_anggaran
+      }, { headers: { Authorization: `Bearer ${token}` } });
 
-      if (data.isNew) {
-        // CREATE
-        await axios.post(`${API_URL}/api/honorarium`, {
-          ...payload,
-          id_subkegiatan: subId
-        }, { headers: { Authorization: `Bearer ${token}` } });
-        showSuccess("Honorarium berhasil dibuat.");
-      } else {
-        // UPDATE
-        await axios.put(`${API_URL}/api/honorarium/${data.id_honor}`, payload, { 
-          headers: { Authorization: `Bearer ${token}` } 
-        });
-        showSuccess("Honorarium berhasil diperbarui.");
-      }
+      // Reset Form
+      setNewHonor({ kode_jabatan: '', tarif: 0, id_satuan: 1, basis_volume: 1, beban_anggaran: '' });
       
-      fetchData(); // Refresh data agar ID tersinkron
-
-    } catch (err) {
-      showError(err.response?.data?.error || "Gagal menyimpan honorarium.");
-    }
-  };
-
-  const handleDelete = async (subId) => {
-    if (!window.confirm("Yakin hapus tarif honor ini?")) return;
-    const token = getToken();
-    const data = inputsMap[subId];
-
-    try {
-      await axios.delete(`${API_URL}/api/honorarium/${data.id_honor}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      if(onRefresh) onRefresh();
+      
+      Swal.fire({ 
+        icon: 'success', 
+        title: 'Berhasil', 
+        text: 'Honorarium ditambahkan.', 
+        timer: 1500, 
+        showConfirmButton: false, 
+        position: 'top-end', 
+        toast: true 
       });
-      showSuccess("Honorarium dihapus.");
-      fetchData(); // Reset state ke mode 'isNew'
+
     } catch (err) {
-      showError("Gagal menghapus data.");
+      Swal.fire('Gagal', err.response?.data?.error || 'Gagal tambah honor', 'error');
     }
   };
 
-  if (loading) return <div className="text-center py-6 text-gray-500">Memuat data honorarium...</div>;
+  // Hapus Honor
+  const handleDelete = async (id) => {
+    const result = await Swal.fire({
+      title: 'Hapus honor ini?',
+      text: "Data tidak bisa dikembalikan.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      confirmButtonText: 'Ya, Hapus'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.delete(`${API_URL}/api/honorarium/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+        if(onRefresh) onRefresh();
+      } catch (err) {
+        Swal.fire('Gagal', 'Terjadi kesalahan saat menghapus.', 'error');
+      }
+    }
+  };
 
   return (
-    <div className="bg-white shadow-sm rounded-xl border border-gray-100 overflow-hidden">
+    <div className="space-y-4">
       
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
-        <span className="text-[#1A2A80] text-lg"><FaMoneyBillWave /></span>
-        <div>
-            <h2 className="text-lg font-bold text-gray-800">Kelola Honorarium</h2>
-            <p className="text-xs text-gray-500">Atur tarif pembayaran untuk setiap sub kegiatan.</p>
-        </div>
-      </div>
-
-      {/* Notifikasi */}
-      {error && <div className="mx-6 mt-4 bg-red-50 text-red-600 px-4 py-2 rounded-lg border border-red-100 text-sm flex items-center gap-2"><FaExclamationCircle /> {error}</div>}
-      {success && <div className="mx-6 mt-4 bg-green-50 text-green-600 px-4 py-2 rounded-lg border border-green-100 text-sm flex items-center gap-2"><FaCheckCircle /> {success}</div>}
-
-      <div className="p-6 space-y-6">
-        {subKegiatans.length === 0 && (
-            <div className="text-center py-8 text-gray-400 italic border-2 border-dashed border-gray-100 rounded-xl">
-                Tidak ada sub kegiatan. Tambahkan sub kegiatan terlebih dahulu.
-            </div>
-        )}
-
-        {subKegiatans.map((sub, index) => {
-          const inputData = inputsMap[sub.id] || {};
-          
-          return (
-            <div key={sub.id} className="p-6 border border-gray-200 rounded-xl bg-white shadow-sm hover:border-green-300 transition-colors relative">
-              
-              {/* Header Item */}
-              <div className="flex items-center gap-3 mb-5 pb-3 border-b border-gray-100">
-                <span className="bg-green-100 text-green-800 w-8 h-8 flex items-center justify-center rounded-full text-xs font-bold">
-                  {index + 1}
-                </span>
-                <div>
-                    <h3 className="font-bold text-gray-800 text-sm">
-                        {sub.nama_sub_kegiatan}
-                    </h3>
-                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${inputData.isNew ? 'bg-gray-100 text-gray-500' : 'bg-green-50 text-green-600'}`}>
-                        {inputData.isNew ? 'Belum Ada Tarif' : 'Aktif'}
-                    </span>
-                </div>
+      {/* List Honor Existing */}
+      {honorList.map((h) => (
+        <div key={h.id_honorarium} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm text-sm transition hover:shadow-md">
+           
+           {/* Baris 1: Jabatan, Tarif, Volume */}
+           <div className="flex flex-col md:flex-row gap-4 mb-3">
+              <div className="w-full md:w-1/4">
+                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Jabatan</label>
+                 <select 
+                    value={h.kode_jabatan} 
+                    disabled 
+                    className="w-full px-2 py-1.5 bg-gray-100 border border-gray-300 rounded text-gray-500 cursor-not-allowed"
+                 >
+                    {/* Tampilkan nama jabatan dari data yang ada */}
+                    <option value={h.kode_jabatan}>{h.nama_jabatan || h.kode_jabatan}</option>
+                 </select>
               </div>
-
-              {/* Form Inputs (Vertikal) */}
-              <div className="flex flex-col gap-5">
-                
-                {/* 1. Tarif */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
-                    Nominal Tarif (Rp)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-gray-500 text-sm font-bold">Rp</span>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={inputData.tarif || ''}
-                      onChange={(e) => handleInputChange(sub.id, 'tarif', parseFloat(e.target.value) || 0)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 text-sm font-bold text-gray-800"
-                    />
-                  </div>
-                </div>
-
-                {/* 2. Satuan */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
-                    Satuan Kegiatan
-                  </label>
-                  <select
-                    value={inputData.id_satuan}
-                    onChange={(e) => handleInputChange(sub.id, 'id_satuan', parseInt(e.target.value))}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 text-sm bg-white"
-                  >
-                    {listSatuan.map(opt => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.nama_satuan} {opt.alias ? `(${opt.alias})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 3. Volume Target */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
-                    Volume Target (Per Pembayaran)
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <span className="text-gray-500 text-sm">Dibayar per:</span>
-                    <input
-                      type="number"
-                      min="1"
-                      value={inputData.basis_volume || 1}
-                      onChange={(e) => handleInputChange(sub.id, 'basis_volume', parseInt(e.target.value) || 1)}
-                      className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 text-sm text-center font-bold"
-                    />
-                    <span className="text-gray-500 text-sm">Unit</span>
-                  </div>
-                </div>
-
+              <div className="w-full md:w-1/4">
+                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tarif (Rp)</label>
+                 <input 
+                    type="number" 
+                    value={h.tarif} 
+                    onChange={(e) => handleExistingChange(h.id_honorarium, 'tarif', e.target.value)}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded focus:border-[#1A2A80] outline-none font-bold"
+                 />
               </div>
-
-              {/* Footer Actions */}
-              <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end gap-3">
-                {inputData.isNew ? (
-                    <button 
-                        onClick={() => handleSave(sub.id)}
-                        className="flex items-center gap-2 bg-[#1A2A80] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-900 transition shadow-sm"
+              <div className="w-full md:w-1/4 flex gap-2">
+                 <div className="flex-1">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Vol</label>
+                    <input 
+                        type="number" 
+                        value={h.basis_volume} 
+                        onChange={(e) => handleExistingChange(h.id_honorarium, 'basis_volume', e.target.value)}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-center focus:border-[#1A2A80] outline-none"
+                    />
+                 </div>
+                 <div className="flex-[2]">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Satuan</label>
+                    <select 
+                        value={h.id_satuan} 
+                        onChange={(e) => handleExistingChange(h.id_honorarium, 'id_satuan', e.target.value)}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded focus:border-[#1A2A80] outline-none"
                     >
-                        <FaSave /> Simpan Tarif
-                    </button>
-                ) : (
-                    <>
-                        <button 
-                            onClick={() => handleDelete(sub.id)}
-                            className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-100 border border-red-200 transition"
-                        >
-                            <FaTrash /> Hapus
-                        </button>
-                        <button 
-                            onClick={() => handleSave(sub.id)}
-                            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition shadow-sm"
-                        >
-                            <FaSyncAlt /> Update
-                        </button>
-                    </>
-                )}
+                        {satuanOptions.map(s => <option key={s.id} value={s.id}>{s.nama_satuan}</option>)}
+                    </select>
+                 </div>
               </div>
+           </div>
+           
+           {/* Baris 2: Beban Anggaran & Tombol Aksi */}
+           <div className="flex items-end gap-3 pt-2 border-t border-dashed border-gray-100">
+              <div className="flex-1">
+                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 flex items-center gap-1">
+                    <FaTag size={10} /> Kode Beban Anggaran
+                 </label>
+                 <input 
+                    type="text" 
+                    placeholder="Contoh: 2903.BMA.009.005.521213"
+                    // Pastikan value mengambil dari h.beban_anggaran
+                    value={h.beban_anggaran || ''} 
+                    onChange={(e) => handleExistingChange(h.id_honorarium, 'beban_anggaran', e.target.value)}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded font-mono text-gray-600 focus:border-[#1A2A80] outline-none"
+                 />
+              </div>
+              <div className="flex gap-2">
+                 <button 
+                    onClick={() => handleUpdate(h)} 
+                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition text-xs font-bold"
+                    title="Simpan Perubahan"
+                 >
+                    <FaSave /> Simpan
+                 </button>
+                 <button 
+                    onClick={() => handleDelete(h.id_honorarium)} 
+                    className="p-2 bg-red-50 text-red-600 rounded hover:bg-red-100 transition" 
+                    title="Hapus"
+                 >
+                    <FaTrash />
+                 </button>
+              </div>
+           </div>
+        </div>
+      ))}
 
+      {/* Form Tambah Baru (Bagian Bawah) */}
+      <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100 border-dashed mt-4">
+         <h5 className="text-xs font-bold text-blue-800 uppercase mb-3 flex items-center gap-2">
+            <FaPlus size={10}/> Tambah Jabatan & Anggaran Baru
+         </h5>
+         
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+            {/* Pilih Jabatan */}
+            <select 
+                value={newHonor.kode_jabatan} 
+                onChange={(e) => setNewHonor({...newHonor, kode_jabatan: e.target.value})}
+                className="w-full px-3 py-2 border border-blue-200 rounded text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+            >
+                <option value="">- Pilih Jabatan -</option>
+                {jabatanOptions.map(j => <option key={j.kode_jabatan} value={j.kode_jabatan}>{j.nama_jabatan}</option>)}
+            </select>
+            
+            {/* Input Tarif */}
+            <input 
+                type="number" 
+                placeholder="Tarif (Rp)" 
+                value={newHonor.tarif || ''} 
+                onChange={(e) => setNewHonor({...newHonor, tarif: parseFloat(e.target.value)})}
+                className="w-full px-3 py-2 border border-blue-200 rounded text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+            />
+            
+            {/* Input Volume & Satuan */}
+            <div className="flex gap-2">
+                <input 
+                    type="number" 
+                    placeholder="Vol" 
+                    value={newHonor.basis_volume} 
+                    onChange={(e) => setNewHonor({...newHonor, basis_volume: parseInt(e.target.value)})}
+                    className="w-1/3 px-3 py-2 border border-blue-200 rounded text-sm text-center focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+                <select 
+                    value={newHonor.id_satuan} 
+                    onChange={(e) => setNewHonor({...newHonor, id_satuan: parseInt(e.target.value)})}
+                    className="w-2/3 px-3 py-2 border border-blue-200 rounded text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+                >
+                    {satuanOptions.map(s => <option key={s.id} value={s.id}>{s.nama_satuan}</option>)}
+                </select>
             </div>
-          );
-        })}
+         </div>
+
+         {/* Input Beban Anggaran Baru */}
+         <div className="flex gap-3">
+             <input 
+                type="text" 
+                placeholder="Kode Beban Anggaran (Contoh: 2903.BMA...)" 
+                value={newHonor.beban_anggaran} 
+                onChange={(e) => setNewHonor({...newHonor, beban_anggaran: e.target.value})}
+                className="flex-1 px-3 py-2 border border-blue-200 rounded text-sm font-mono focus:ring-1 focus:ring-blue-500 outline-none"
+             />
+             <button 
+                onClick={handleAdd} 
+                className="bg-blue-600 text-white px-6 py-2 rounded text-sm font-bold hover:bg-blue-700 transition"
+             >
+                Tambah
+             </button>
+         </div>
       </div>
+
     </div>
   );
 };

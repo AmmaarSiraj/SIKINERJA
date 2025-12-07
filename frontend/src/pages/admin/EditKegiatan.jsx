@@ -1,3 +1,4 @@
+// src/pages/admin/EditKegiatan.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import axios from 'axios';
@@ -15,16 +16,20 @@ const EditKegiatan = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // State untuk Data Induk Kegiatan
   const [indukData, setIndukData] = useState({
     nama_kegiatan: '', 
     deskripsi: ''
   });
 
+  // State untuk Daftar Sub Kegiatan & Honorarium
   const [subKegiatans, setSubKegiatans] = useState([]);
 
+  // State untuk Melacak ID Asli (Database) guna logika Hapus/Update
   const [originalSubIds, setOriginalSubIds] = useState([]);
   const [originalHonorIds, setOriginalHonorIds] = useState([]);
 
+  // --- 1. FETCH DATA (LOAD) ---
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -38,23 +43,28 @@ const EditKegiatan = () => {
           axios.get(`${API_URL}/api/honorarium`, { headers }) 
         ]);
 
+        // Set Data Induk
         setIndukData({
           nama_kegiatan: resInduk.data.nama_kegiatan,
           deskripsi: resInduk.data.deskripsi || ''
         });
 
         const allHonors = resHonor.data;
+
+        // Mapping Sub Kegiatan & Honorarium
         const mappedSubs = resSub.data.map(sub => {
+          // Filter honorarium milik sub kegiatan ini
           const myHonors = allHonors.filter(h => h.id_subkegiatan === sub.id).map(h => ({
             id: h.id_honorarium, 
             kode_jabatan: h.kode_jabatan,
             tarif: Number(h.tarif),
             id_satuan: h.id_satuan,
-            basis_volume: h.basis_volume
+            basis_volume: h.basis_volume,
+            beban_anggaran: h.beban_anggaran || '' // [FIX 1] Load beban_anggaran
           }));
 
           return {
-            id: sub.id, 
+            id: sub.id, // ID Sub (String jika dari DB)
             nama_sub_kegiatan: sub.nama_sub_kegiatan,
             deskripsi: sub.deskripsi || '',
             periode: sub.periode || '',
@@ -68,6 +78,7 @@ const EditKegiatan = () => {
 
         setSubKegiatans(mappedSubs);
 
+        // Simpan ID Asli untuk pelacakan penghapusan
         setOriginalSubIds(mappedSubs.map(s => s.id));
         
         const allHonorIds = [];
@@ -85,6 +96,8 @@ const EditKegiatan = () => {
     if (id) fetchData();
   }, [id]);
 
+  // --- HANDLERS ---
+
   const handleNextStep = () => {
     if (!indukData.nama_kegiatan) {
         return Swal.fire('Validasi Gagal', 'Nama Kegiatan wajib diisi', 'warning');
@@ -95,7 +108,7 @@ const EditKegiatan = () => {
 
   const addSubCard = () => {
     setSubKegiatans([...subKegiatans, { 
-      id: Date.now(), 
+      id: Date.now(), // ID Sementara (Number)
       nama_sub_kegiatan: '', 
       deskripsi: '', 
       periode: '', 
@@ -107,7 +120,9 @@ const EditKegiatan = () => {
     }]);
   };
 
+  // --- 2. HANDLE SUBMIT (SAVE/UPDATE/DELETE) ---
   const handleFinalSubmit = async () => {
+    // Validasi Frontend Sederhana
     for (const sub of subKegiatans) {
       if (!sub.nama_sub_kegiatan) return Swal.fire('Gagal', 'Nama Sub Kegiatan tidak boleh kosong.', 'error');
       for (const h of sub.honorList) {
@@ -121,12 +136,12 @@ const EditKegiatan = () => {
     const config = { headers: { Authorization: `Bearer ${token}` } };
 
     try {
-      const finalHonorIds = [];
-      subKegiatans.forEach(s => s.honorList.forEach(h => {
-          if(typeof h.id !== 'number') finalHonorIds.push(h.id);
-      }));
+      // --- A. LOGIKA PENGHAPUSAN (DELETE) ---
+      // Bandingkan data di form saat ini dengan data asli (originalIds)
       
-      const honorsToDelete = originalHonorIds.filter(oldId => !finalHonorIds.includes(oldId));
+      // 1. Hapus Honorarium yang hilang
+      const currentHonorIds = subKegiatans.flatMap(s => s.honorList.map(h => h.id));
+      const honorsToDelete = originalHonorIds.filter(oldId => !currentHonorIds.includes(oldId));
       
       if (honorsToDelete.length > 0) {
           await Promise.all(honorsToDelete.map(hId => 
@@ -134,6 +149,7 @@ const EditKegiatan = () => {
           ));
       }
 
+      // 2. Hapus Sub Kegiatan yang hilang
       const currentSubIds = subKegiatans.map(s => s.id);
       const subsToDelete = originalSubIds.filter(oldId => !currentSubIds.includes(oldId));
       
@@ -143,8 +159,10 @@ const EditKegiatan = () => {
           ));
       }
 
+      // --- B. UPDATE KEGIATAN INDUK ---
       await axios.put(`${API_URL}/api/kegiatan/${id}`, indukData, config);
 
+      // --- C. UPSERT SUB KEGIATAN & HONORARIUM ---
       for (const sub of subKegiatans) {
         let subId = sub.id;
         
@@ -159,29 +177,38 @@ const EditKegiatan = () => {
           close_req: sub.close_req
         };
 
+        // Cek ID Sub Kegiatan: Number (Date.now) = BARU, String (DB ID) = LAMA
         if (typeof sub.id === 'number') {
+          // INSERT Sub Baru
           const res = await axios.post(`${API_URL}/api/subkegiatan`, {
              ...payloadSub, 
              mode_kegiatan: 'existing'
           }, config);
-          subId = res.data.data.id; 
+          subId = res.data.data.id; // Dapatkan ID baru dari server
         } else {
+          // UPDATE Sub Lama
           await axios.put(`${API_URL}/api/subkegiatan/${subId}/info`, payloadSub, config);
         }
 
+        // Proses Honorarium di dalam Sub tersebut
         for (const h of sub.honorList) {
           const payloadHonor = {
-            id_subkegiatan: subId, 
+            id_subkegiatan: subId, // Gunakan ID Sub yang valid (baru/lama)
             kode_jabatan: h.kode_jabatan,
             tarif: h.tarif,
             id_satuan: h.id_satuan || 1, 
-            basis_volume: h.basis_volume || 1
+            basis_volume: h.basis_volume || 1,
+            beban_anggaran: h.beban_anggaran // [FIX 2] Kirim beban_anggaran
           };
 
-          if (typeof h.id === 'number') {
-            await axios.post(`${API_URL}/api/honorarium`, payloadHonor, config);
-          } else {
+          // [FIX 3] Logika Cek Update vs Insert Honorarium
+          // Gunakan originalHonorIds untuk memastikan ID berasal dari DB
+          if (originalHonorIds.includes(h.id)) {
+            // UPDATE: Jika ID ada di daftar asli
             await axios.put(`${API_URL}/api/honorarium/${h.id}`, payloadHonor, config);
+          } else {
+            // INSERT: Jika ID tidak ada di daftar asli (ID sementara dari Date.now)
+            await axios.post(`${API_URL}/api/honorarium`, payloadHonor, config);
           }
         }
       }
@@ -210,6 +237,7 @@ const EditKegiatan = () => {
   return (
     <div className="max-w-5xl mx-auto pb-20">
       
+      {/* HEADER */}
       <div className="flex items-center gap-4 mb-8">
         <Link to="/admin/manage-kegiatan" className="text-gray-500 hover:text-[#1A2A80] transition">
           <FaArrowLeft size={20} />
@@ -224,6 +252,7 @@ const EditKegiatan = () => {
         </div>
       </div>
 
+      {/* STEP 1: FORM INDUK */}
       {step === 1 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 animate-fade-in-up">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
@@ -266,6 +295,7 @@ const EditKegiatan = () => {
         </div>
       )}
 
+      {/* STEP 2: FORM SUB KEGIATAN & HONOR */}
       {step === 2 && (
         <div className="animate-fade-in-up">
           

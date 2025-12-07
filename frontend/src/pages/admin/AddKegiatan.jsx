@@ -4,44 +4,37 @@ import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import PartSubKegiatan from '../../components/admin/PartSubKegiatan';
-import { FaArrowLeft, FaSave, FaPlus, FaCheck, FaLayerGroup, FaArrowRight } from 'react-icons/fa';
+import { FaArrowLeft, FaPlus, FaCheck, FaLayerGroup, FaArrowRight } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const AddKegiatan = () => {
   const navigate = useNavigate();
   
-  // --- STATE CONTROL ---
-  const [step, setStep] = useState(1); // 1 = Kegiatan Induk, 2 = Sub & Honor
-  const [modeInput, setModeInput] = useState('new'); // 'new' or 'existing'
+  const [step, setStep] = useState(1); 
+  const [modeInput, setModeInput] = useState('new'); 
   const [loading, setLoading] = useState(false);
 
-  // --- DATA STATE ---
   const [existingKegiatanList, setExistingKegiatanList] = useState([]);
   
-  // Data Step 1 (Induk) - DISEDERHANAKAN
   const [indukData, setIndukData] = useState({
-    id_selected: '', // Jika existing
-    nama_kegiatan: '', // Jika new
+    id_selected: '', 
+    nama_kegiatan: '', 
     deskripsi: ''
   });
 
-  // Data Step 2 (Array Sub Kegiatan, di dalamnya ada Array Honor)
+  // State awal sub kegiatan (tanpa periode, open_req, close_req)
   const [subKegiatans, setSubKegiatans] = useState([
     { 
       id: Date.now(), 
       nama_sub_kegiatan: '', 
       deskripsi: '', 
-      periode: new Date().getFullYear().toString(),
       tanggal_mulai: '', 
       tanggal_selesai: '', 
-      open_req: '', 
-      close_req: '',
       honorList: []
     }
   ]);
 
-  // Fetch Existing Activities (Untuk Dropdown Pilihan)
   useEffect(() => {
     const fetchKeg = async () => {
       try {
@@ -55,9 +48,7 @@ const AddKegiatan = () => {
     fetchKeg();
   }, []);
 
-  // --- HANDLERS STEP 1 (NAVIGASI) ---
   const handleNextStep = () => {
-    // Validasi Step 1
     if (modeInput === 'new' && !indukData.nama_kegiatan) {
         return Swal.fire('Data Belum Lengkap', 'Nama Kegiatan Baru wajib diisi', 'warning');
     }
@@ -66,31 +57,29 @@ const AddKegiatan = () => {
     }
     
     setStep(2);
-    window.scrollTo(0, 0); // Scroll ke atas saat ganti step
+    window.scrollTo(0, 0); 
   };
 
-  // --- HANDLERS STEP 2 (ACTION) ---
   const addSubCard = () => {
     setSubKegiatans([...subKegiatans, { 
       id: Date.now(), 
       nama_sub_kegiatan: '', 
       deskripsi: '', 
-      periode: new Date().getFullYear().toString(),
       tanggal_mulai: '', 
       tanggal_selesai: '', 
-      open_req: '', 
-      close_req: '',
       honorList: [] 
     }]);
   };
 
   const handleFinalSubmit = async () => {
-    // Validasi Step 2 (Sub Kegiatan & Honor)
+    // Validasi Input
     for (const sub of subKegiatans) {
       if (!sub.nama_sub_kegiatan) {
           return Swal.fire('Validasi Gagal', 'Ada nama sub kegiatan yang masih kosong.', 'error');
       }
-      // Validasi Honor (Opsional, tapi jika ada harus lengkap)
+      if (!sub.tanggal_mulai) {
+          return Swal.fire('Validasi Gagal', `Tanggal Mulai pada "${sub.nama_sub_kegiatan}" wajib diisi.`, 'error');
+      }
       for (const h of sub.honorList) {
         if (!h.kode_jabatan) {
             return Swal.fire('Validasi Gagal', `Jabatan pada sub kegiatan "${sub.nama_sub_kegiatan}" belum dipilih.`, 'error');
@@ -108,34 +97,30 @@ const AddKegiatan = () => {
     try {
       let idKegiatan = indukData.id_selected;
 
-      // 1. Buat Kegiatan Baru (Jika mode new)
+      // 1. Simpan Kegiatan Induk (Jika Baru)
       if (modeInput === 'new') {
         const resKeg = await axios.post(`${API_URL}/api/kegiatan`, {
           nama_kegiatan: indukData.nama_kegiatan,
           deskripsi: indukData.deskripsi
-          // Field tahun_anggaran & tanggal dihapus karena tidak ada di DB
         }, config);
         idKegiatan = resKeg.data.data.kegiatan.id;
       }
 
-      // 2. Loop Simpan Sub Kegiatan & Honor
+      // 2. Simpan Sub Kegiatan & Honorarium
       for (const sub of subKegiatans) {
-        // A. Simpan Sub Kegiatan
+        // Simpan Sub Kegiatan
         const resSub = await axios.post(`${API_URL}/api/subkegiatan`, {
           mode_kegiatan: 'existing', 
           id_kegiatan: idKegiatan,
           nama_sub_kegiatan: sub.nama_sub_kegiatan,
           deskripsi: sub.deskripsi,
-          periode: sub.periode,
           tanggal_mulai: sub.tanggal_mulai,
-          tanggal_selesai: sub.tanggal_selesai,
-          open_req: sub.open_req,
-          close_req: sub.close_req
+          tanggal_selesai: sub.tanggal_selesai
         }, config);
 
         const newSubId = resSub.data.data.id; 
 
-        // B. Simpan Honor (Looping honorList)
+        // Simpan Honorarium (Looping honorList)
         if (sub.honorList && sub.honorList.length > 0) {
           for (const h of sub.honorList) {
             await axios.post(`${API_URL}/api/honorarium`, {
@@ -143,7 +128,9 @@ const AddKegiatan = () => {
               kode_jabatan: h.kode_jabatan,
               tarif: h.tarif,
               id_satuan: h.id_satuan,
-              basis_volume: h.basis_volume
+              basis_volume: h.basis_volume,
+              // PERUBAHAN: Mengirim field beban_anggaran
+              beban_anggaran: h.beban_anggaran || null 
             }, config);
           }
         }
@@ -191,7 +178,6 @@ const AddKegiatan = () => {
       {step === 1 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 animate-fade-in-up">
           
-          {/* Pilihan Mode */}
           <div className="flex flex-col sm:flex-row gap-4 mb-8 justify-center">
             <button
               onClick={() => setModeInput('new')}
@@ -223,7 +209,6 @@ const AddKegiatan = () => {
                     <option key={k.id} value={k.id}>{k.nama_kegiatan}</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-2">Pilih kegiatan induk untuk menambahkan sub kegiatan baru di dalamnya.</p>
               </div>
             ) : (
               <>
@@ -269,7 +254,6 @@ const AddKegiatan = () => {
       {step === 2 && (
         <div className="animate-fade-in-up">
           
-          {/* Info Kegiatan Induk (Read Only) */}
           <div className="bg-blue-50 border border-blue-200 p-5 rounded-xl mb-8 flex justify-between items-center shadow-sm">
              <div>
                 <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Kegiatan Induk Terpilih</span>
@@ -282,13 +266,11 @@ const AddKegiatan = () => {
              </button>
           </div>
 
-          {/* List Kartu Sub Kegiatan */}
           <PartSubKegiatan 
             subKegiatans={subKegiatans} 
             setSubKegiatans={setSubKegiatans} 
           />
 
-          {/* Tombol Tambah Kartu Lain */}
           <button 
             onClick={addSubCard}
             className="w-full mt-8 py-5 border-2 border-dashed border-gray-300 rounded-2xl text-gray-500 font-bold hover:bg-white hover:border-[#1A2A80] hover:text-[#1A2A80] hover:shadow-md transition flex justify-center items-center gap-3 group"
@@ -299,7 +281,6 @@ const AddKegiatan = () => {
             Tambah Sub Kegiatan Lain
           </button>
 
-          {/* Footer Navigation */}
           <div className="mt-12 flex justify-between items-center pt-8 border-t border-gray-200">
             <button 
               onClick={() => setStep(1)}

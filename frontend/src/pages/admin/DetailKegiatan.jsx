@@ -8,22 +8,21 @@ import {
   FaArrowLeft, 
   FaMoneyBillWave, 
   FaUserTag, 
-  FaCheck, 
-  FaClock, 
   FaLayerGroup,
   FaCalendarAlt,
   FaBullhorn,
   FaCoins,
-  FaBoxOpen
+  FaBoxOpen,
+  FaInfoCircle
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const DetailKegiatan = () => {
-  const { id } = useParams(); // ID Sub Kegiatan (misal: "sub1")
+  const { id } = useParams(); // ID Sub Kegiatan
 
   const [subData, setSubData] = useState(null);
-  const [honorList, setHonorList] = useState([]); // List honorarium (berisi jabatan & tarif)
+  const [honorList, setHonorList] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -39,10 +38,9 @@ const DetailKegiatan = () => {
         const resSub = await axios.get(`${API_URL}/api/subkegiatan/${id}`, { headers });
         setSubData(resSub.data);
 
-        // 2. Ambil Data Honorarium (yang sudah di-join dengan Jabatan & Satuan di backend)
+        // 2. Ambil Data Honorarium
         const resHon = await axios.get(`${API_URL}/api/honorarium`, { headers });
         if (resHon.data && Array.isArray(resHon.data)) {
-          // Filter hanya honor yang milik sub kegiatan ini
           const relevantHonors = resHon.data.filter(h => h.id_subkegiatan === id);
           setHonorList(relevantHonors);
         }
@@ -58,27 +56,6 @@ const DetailKegiatan = () => {
     if (id) fetchData();
   }, [id]);
 
-  const handleUpdateStatus = async (newStatus) => {
-    try {
-      const token = localStorage.getItem('token');
-      await axios.put(
-        `${API_URL}/api/subkegiatan/${id}/status`, 
-        { status: newStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setSubData(prev => ({ ...prev, status: newStatus }));
-      Swal.fire({
-        icon: 'success',
-        title: 'Status Diperbarui',
-        text: `Status kegiatan kini: ${newStatus === 'done' ? 'Selesai' : 'Dalam Proses'}`,
-        timer: 1500,
-        showConfirmButton: false
-      });
-    } catch (err) {
-      Swal.fire('Gagal', 'Gagal update status kegiatan', 'error');
-    }
-  };
-
   const formatRupiah = (num) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
   };
@@ -88,9 +65,34 @@ const DetailKegiatan = () => {
     return new Date(dateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
+  // --- LOGIKA STATUS OTOMATIS (Sama dengan ManageKegiatan) ---
+  const getComputedStatus = (startDate, endDate) => {
+    if (!startDate || !endDate) return { label: 'Jadwal Belum Lengkap', className: 'bg-gray-100 text-gray-500' };
+    
+    const now = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // Set jam agar perbandingan tanggal akurat
+    now.setHours(0, 0, 0, 0);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    if (now < start) {
+        return { label: 'Akan Datang', className: 'bg-blue-100 text-blue-700 border border-blue-200' };
+    } else if (now > end) {
+        return { label: 'Selesai', className: 'bg-green-100 text-green-700 border border-green-200' };
+    } else {
+        return { label: 'Sedang Proses', className: 'bg-yellow-100 text-yellow-700 border border-yellow-200' };
+    }
+  };
+
   if (loading) return <div className="text-center py-10 text-gray-500">Memuat detail...</div>;
   if (error) return <div className="text-center py-10 text-red-600">{error}</div>;
   if (!subData) return <div className="text-center py-10 text-gray-500">Data tidak ditemukan.</div>;
+
+  // Hitung status saat render
+  const statusObj = getComputedStatus(subData.tanggal_mulai, subData.tanggal_selesai);
 
   return (
     <div className="w-full space-y-8 pb-10">
@@ -107,8 +109,12 @@ const DetailKegiatan = () => {
 
       {/* === BAGIAN 1: Header Informasi Sub Kegiatan === */}
       <div className="bg-white shadow-sm rounded-xl overflow-hidden border border-gray-100 relative">
-        {/* Status Bar di Kiri */}
-        <div className={`absolute top-0 left-0 w-1.5 h-full ${subData.status === 'done' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+        {/* Status Bar di Kiri (Warna dinamis sesuai status) */}
+        <div className={`absolute top-0 left-0 w-1.5 h-full ${
+            statusObj.label === 'Selesai' ? 'bg-green-500' : 
+            statusObj.label === 'Sedang Proses' ? 'bg-yellow-500' : 
+            'bg-blue-500'
+        }`}></div>
         
         <div className="p-8 pl-10">
           <div className="flex flex-col md:flex-row justify-between items-start gap-6">
@@ -124,45 +130,20 @@ const DetailKegiatan = () => {
               
               {/* Info Tanggal Grid */}
               <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                 {subData.periode && (
-                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
-                        <FaClock className="text-[#1A2A80]" /> 
-                        <span className="font-semibold text-gray-700">Periode:</span> {subData.periode}
-                    </div>
-                 )}
                  <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
                     <FaCalendarAlt className="text-[#1A2A80]" /> 
                     <span className="font-semibold text-gray-700">Pelaksanaan:</span> 
                     {formatDate(subData.tanggal_mulai)} - {formatDate(subData.tanggal_selesai)}
                  </div>
-                 {subData.open_req && (
-                    <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 text-blue-700">
-                        <FaBullhorn /> 
-                        <span className="font-semibold">Rekrutmen:</span> 
-                        {formatDate(subData.open_req)} - {formatDate(subData.close_req)}
-                    </div>
-                 )}
               </div>
             </div>
             
-            {/* Tombol Status */}
+            {/* Status Display (Otomatis) */}
             <div className="flex flex-col items-end gap-2 min-w-fit">
               <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Status Kegiatan</span>
-              {subData.status === 'done' ? (
-                <button 
-                  onClick={() => handleUpdateStatus('pending')}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-green-50 text-green-700 text-sm font-bold rounded-xl border border-green-200 hover:bg-green-100 transition shadow-sm"
-                >
-                  <FaCheck /> Selesai
-                </button>
-              ) : (
-                <button 
-                  onClick={() => handleUpdateStatus('done')}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-yellow-50 text-yellow-700 text-sm font-bold rounded-xl border border-yellow-200 hover:bg-yellow-100 transition shadow-sm"
-                >
-                  <FaClock /> Dalam Proses
-                </button>
-              )}
+              <div className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm ${statusObj.className}`}>
+                <FaInfoCircle /> {statusObj.label}
+              </div>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 // src/components/admin/PartSubKegiatan.jsx
 import React from 'react';
-import { FaTrash, FaCalendarAlt, FaBullhorn, FaClock } from 'react-icons/fa';
+import { FaTrash, FaCalendarAlt } from 'react-icons/fa';
 import PartAddHonor from './PartAddHonor';
 
 const PartSubKegiatan = ({ subKegiatans, setSubKegiatans }) => {
@@ -48,30 +48,16 @@ const PartSubKegiatan = ({ subKegiatans, setSubKegiatans }) => {
             {/* Form Sub Kegiatan */}
             <div className="grid grid-cols-1 gap-5 mb-6">
                 
-                {/* Baris 1: Nama & Periode */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Nama Sub Kegiatan <span className="text-red-500">*</span></label>
-                        <input
-                            type="text"
-                            value={sub.nama_sub_kegiatan}
-                            onChange={(e) => handleChange(sub.id, 'nama_sub_kegiatan', e.target.value)}
-                            placeholder="Contoh: Pencacahan Lapangan"
-                            className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-transparent text-sm transition outline-none"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 flex items-center gap-1">
-                           <FaClock /> Periode (Bulan/Tahun)
-                        </label>
-                        {/* PERUBAHAN DI SINI: type="text" menjadi type="month" */}
-                        <input
-                            type="month"
-                            value={sub.periode}
-                            onChange={(e) => handleChange(sub.id, 'periode', e.target.value)}
-                            className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-transparent text-sm transition outline-none"
-                        />
-                    </div>
+                {/* Baris 1: Nama Sub Kegiatan */}
+                <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Nama Sub Kegiatan <span className="text-red-500">*</span></label>
+                    <input
+                        type="text"
+                        value={sub.nama_sub_kegiatan}
+                        onChange={(e) => handleChange(sub.id, 'nama_sub_kegiatan', e.target.value)}
+                        placeholder="Contoh: Pencacahan Lapangan"
+                        className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-transparent text-sm transition outline-none"
+                    />
                 </div>
 
                 {/* Deskripsi */}
@@ -86,42 +72,23 @@ const PartSubKegiatan = ({ subKegiatans, setSubKegiatans }) => {
                     />
                 </div>
                 
-                {/* Grid Tanggal */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {/* Jadwal Pelaksanaan */}
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                        <p className="text-xs font-bold text-gray-600 flex items-center gap-2 mb-3 uppercase tracking-wide">
-                            <FaCalendarAlt className="text-[#1A2A80]" /> Jadwal Pelaksanaan
-                        </p>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-[10px] text-gray-400 font-bold block mb-1">MULAI</label>
-                                <input type="date" className="w-full text-xs border border-gray-300 rounded p-2 focus:border-[#1A2A80] outline-none" value={sub.tanggal_mulai} onChange={(e) => handleChange(sub.id, 'tanggal_mulai', e.target.value)} />
-                            </div>
-                            <div>
-                                <label className="text-[10px] text-gray-400 font-bold block mb-1">SELESAI</label>
-                                <input type="date" className="w-full text-xs border border-gray-300 rounded p-2 focus:border-[#1A2A80] outline-none" value={sub.tanggal_selesai} onChange={(e) => handleChange(sub.id, 'tanggal_selesai', e.target.value)} />
-                            </div>
+                {/* Jadwal Pelaksanaan */}
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <p className="text-xs font-bold text-gray-600 flex items-center gap-2 mb-3 uppercase tracking-wide">
+                        <FaCalendarAlt className="text-[#1A2A80]" /> Jadwal Pelaksanaan (Acuan Periode)
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] text-gray-400 font-bold block mb-1">MULAI <span className="text-red-500">*</span></label>
+                            <input type="date" className="w-full text-xs border border-gray-300 rounded p-2 focus:border-[#1A2A80] outline-none" value={sub.tanggal_mulai} onChange={(e) => handleChange(sub.id, 'tanggal_mulai', e.target.value)} />
                         </div>
-                    </div>
-
-                    {/* Jadwal Rekrutmen */}
-                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                        <p className="text-xs font-bold text-blue-700 flex items-center gap-2 mb-3 uppercase tracking-wide">
-                            <FaBullhorn /> Open Recruitment
-                        </p>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-[10px] text-blue-400 font-bold block mb-1">BUKA</label>
-                                <input type="date" className="w-full text-xs border border-blue-200 rounded p-2 text-blue-800 focus:ring-1 focus:ring-blue-400 outline-none" value={sub.open_req} onChange={(e) => handleChange(sub.id, 'open_req', e.target.value)} />
-                            </div>
-                            <div>
-                                <label className="text-[10px] text-blue-400 font-bold block mb-1">TUTUP</label>
-                                <input type="date" className="w-full text-xs border border-blue-200 rounded p-2 text-blue-800 focus:ring-1 focus:ring-blue-400 outline-none" value={sub.close_req} onChange={(e) => handleChange(sub.id, 'close_req', e.target.value)} />
-                            </div>
+                        <div>
+                            <label className="text-[10px] text-gray-400 font-bold block mb-1">SELESAI</label>
+                            <input type="date" className="w-full text-xs border border-gray-300 rounded p-2 focus:border-[#1A2A80] outline-none" value={sub.tanggal_selesai} onChange={(e) => handleChange(sub.id, 'tanggal_selesai', e.target.value)} />
                         </div>
                     </div>
                 </div>
+
             </div>
 
             {/* INTEGRASI: PartAddHonor */}

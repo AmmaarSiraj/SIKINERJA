@@ -6,7 +6,7 @@ import Swal from 'sweetalert2';
 import { 
   FaArrowRight, FaArrowLeft, FaCheck, FaClipboardList, 
   FaIdCard, FaSearch, FaTimes, FaUsers, FaMoneyBillWave,
-  FaExclamationCircle, FaChartBar, FaBoxOpen
+  FaExclamationCircle, FaChartBar, FaBoxOpen, FaFilter
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -75,7 +75,7 @@ const TambahPenugasan = () => {
     fetchData();
   }, []);
 
-  // 2. FILTER SUB KEGIATAN
+  // 2. FILTER SUB KEGIATAN DROPDOWN
   useEffect(() => {
     const fetchSubDropdown = async () => {
         if (!selectedKegiatanId) {
@@ -95,7 +95,7 @@ const TambahPenugasan = () => {
     fetchSubDropdown();
   }, [selectedKegiatanId]);
 
-  // 3. HITUNG PENDAPATAN & LIMIT (HISTORIS - TAHUNAN) + ALERT JIKA KOSONG
+  // 3. HITUNG PENDAPATAN & LIMIT (HISTORIS - TAHUNAN)
   useEffect(() => {
     if (!selectedSubId) {
       setBatasHonorPeriode(0);
@@ -103,13 +103,13 @@ const TambahPenugasan = () => {
       return;
     }
 
-    const subInfo = listSubKegiatan.find(s => s.id === selectedSubId);
-    if (!subInfo || !subInfo.periode) return;
+    const subInfo = allSubKegiatan.find(s => String(s.id) === String(selectedSubId));
     
-    // Ambil TAHUN dari periode sub kegiatan (misal "2025-02" -> "2025")
-    const tahunKegiatan = subInfo.periode.split('-')[0]; 
+    if (!subInfo || !subInfo.tanggal_mulai) return;
+    
+    // Ambil TAHUN dari tanggal_mulai
+    const tahunKegiatan = new Date(subInfo.tanggal_mulai).getFullYear().toString();
 
-    // Cari aturan berdasarkan TAHUN
     const aturan = listAturan.find(r => 
         String(r.tahun) === String(tahunKegiatan) || 
         String(r.periode) === String(tahunKegiatan)
@@ -119,30 +119,20 @@ const TambahPenugasan = () => {
         setBatasHonorPeriode(Number(aturan.batas_honor));
     } else {
         setBatasHonorPeriode(0);
-        // --- ALERT JIKA ATURAN TIDAK DITEMUKAN ---
-        Swal.fire({
-            title: 'Peringatan Aturan',
-            text: `Belum ada aturan batas honor untuk tahun ${tahunKegiatan}. Mohon atur terlebih dahulu di menu Manajemen Mitra agar validasi honor berjalan.`,
-            icon: 'warning',
-            confirmButtonText: 'Mengerti',
-            confirmButtonColor: '#f59e0b' // Warna orange/kuning warning
-        });
+        // Optional: Alert jika aturan belum ada
     }
 
     const incomeMap = {};
     
-    // Hitung akumulasi honor SETAHUN PENUH
     listKelompok.forEach(k => {
       const penugasan = listPenugasan.find(p => p.id_penugasan === k.id_penugasan);
       if (!penugasan) return;
       
       const sub = allSubKegiatan.find(s => s.id === penugasan.id_subkegiatan);
+      if (!sub || !sub.tanggal_mulai) return;
       
-      // Validasi: Pastikan sub kegiatan ada dan TAHUNNYA SAMA
-      if (!sub || !sub.periode) return;
-      const subYear = sub.periode.split('-')[0];
+      const subYear = new Date(sub.tanggal_mulai).getFullYear().toString();
 
-      // Jika tahunnya beda, jangan dijumlahkan (misal data 2024 tidak pengaruh ke limit 2025)
       if (subYear !== tahunKegiatan) return;
 
       const honor = listHonorarium.find(h => h.id_subkegiatan === sub.id && h.kode_jabatan === k.kode_jabatan);
@@ -157,9 +147,17 @@ const TambahPenugasan = () => {
 
     setMitraIncomeMap(incomeMap);
 
-  }, [selectedSubId, listSubKegiatan, listAturan, listKelompok, listPenugasan, allSubKegiatan, listHonorarium]);
+  }, [selectedSubId, allSubKegiatan, listAturan, listKelompok, listPenugasan, listHonorarium]);
 
-  // 4. FILTER MITRA SUDAH BERTUGAS DI SUB INI
+  // 4. MENGHITUNG TAHUN TARGET (Untuk Filter Mitra)
+  const targetYear = useMemo(() => {
+    if (!selectedSubId) return null;
+    const sub = allSubKegiatan.find(s => String(s.id) === String(selectedSubId));
+    if (!sub || !sub.tanggal_mulai) return null;
+    return new Date(sub.tanggal_mulai).getFullYear().toString();
+  }, [selectedSubId, allSubKegiatan]);
+
+  // 5. FILTER MITRA SUDAH BERTUGAS DI SUB INI
   const unavailableMitraIds = useMemo(() => {
     if (!selectedSubId) return new Set();
 
@@ -174,12 +172,11 @@ const TambahPenugasan = () => {
     return new Set(assignedIds);
   }, [selectedSubId, listPenugasan, listKelompok]);
 
-  // 5. DATA JABATAN & PROGRESS VOLUME (REALTIME)
+  // 6. DATA JABATAN & PROGRESS VOLUME
   const availableJabatan = useMemo(() => {
-    return listHonorarium.filter(h => h.id_subkegiatan === selectedSubId);
+    return listHonorarium.filter(h => String(h.id_subkegiatan) === String(selectedSubId));
   }, [listHonorarium, selectedSubId]);
 
-  // Fungsi menghitung volume terpakai per jabatan
   const getVolumeStats = (kodeJabatan, basisVolume) => {
     const relatedPenugasanIds = listPenugasan
       .filter(p => String(p.id_subkegiatan) === String(selectedSubId))
@@ -213,7 +210,6 @@ const TambahPenugasan = () => {
 
   const handleAddMitra = (mitra) => {
     if (selectedMitras.some(m => m.id === mitra.id)) return;
-    // Default: Jabatan kosong, Volume 1
     setSelectedMitras([...selectedMitras, { ...mitra, assignedJabatan: '', assignedVolume: 1 }]);
     setMitraSearch(''); 
     setShowMitraDropdown(false);
@@ -230,7 +226,6 @@ const TambahPenugasan = () => {
   };
 
   const handleSubmit = async () => {
-    // 1. Validasi Dasar
     if (selectedMitras.length === 0) {
       return Swal.fire('Perhatian', 'Belum ada mitra yang dipilih.', 'warning');
     }
@@ -240,8 +235,6 @@ const TambahPenugasan = () => {
       return Swal.fire('Data Belum Lengkap', `Harap pilih jabatan dan isi volume tugas (> 0) untuk mitra: ${incompleteMitra.nama_lengkap}`, 'warning');
     }
 
-    // 2. Validasi Batas Honor
-    // Hanya validasi jika batasHonorPeriode > 0 (Artinya aturan sudah diset)
     if (batasHonorPeriode > 0) {
         const overLimitUser = selectedMitras.find(m => {
             const hInfo = availableJabatan.find(h => h.kode_jabatan === m.assignedJabatan);
@@ -259,9 +252,6 @@ const TambahPenugasan = () => {
                 'error'
             );
         }
-    } else {
-        // Peringatan opsional jika user memaksa simpan tanpa aturan
-        // (Biasanya backend juga akan menolak jika logic backend mengharuskan ada aturan)
     }
 
     setSubmitting(true);
@@ -275,7 +265,6 @@ const TambahPenugasan = () => {
       );
 
       if (existingPenugasan) {
-        // A. Tambah ke Existing
         const idPenugasanExist = existingPenugasan.id_penugasan;
         const promises = selectedMitras.map(m => {
             return axios.post(`${API_URL}/api/kelompok-penugasan`, {
@@ -296,7 +285,6 @@ const TambahPenugasan = () => {
         }).then(() => navigate('/admin/penugasan'));
 
       } else {
-        // B. Buat Penugasan Baru
         const payload = {
             id_subkegiatan: selectedSubId,
             id_pengawas: user ? user.id : 1,
@@ -326,11 +314,29 @@ const TambahPenugasan = () => {
     }
   };
 
+  // --- FILTER MITRA (TERMASUK TAHUN AKTIF) ---
   const filteredMitra = listMitra.filter(m => {
+    // 1. Filter Search
     const matchSearch = m.nama_lengkap.toLowerCase().includes(mitraSearch.toLowerCase()) || m.nik.includes(mitraSearch);
+    
+    // 2. Filter Sudah Terpilih
     const notSelected = !selectedMitras.some(selected => selected.id === m.id);
+    
+    // 3. Filter Sudah Ada di Database untuk SubKegiatan ini
     const notAlreadyAssigned = !unavailableMitraIds.has(String(m.id));
-    return matchSearch && notSelected && notAlreadyAssigned;
+
+    // 4. [BARU] Filter Tahun Aktif
+    let isActiveInYear = false;
+    if (targetYear && m.riwayat_tahun) {
+        // m.riwayat_tahun formatnya "2026, 2025" (string)
+        const years = m.riwayat_tahun.split(', ');
+        isActiveInYear = years.includes(targetYear);
+    } else if (!targetYear) {
+        // Jika belum ada sub kegiatan terpilih, tampilkan saja (opsional)
+        isActiveInYear = true; 
+    }
+
+    return matchSearch && notSelected && notAlreadyAssigned && isActiveInYear;
   });
 
   if (loading) return <div className="text-center py-20 text-gray-500">Memuat formulir...</div>;
@@ -349,7 +355,7 @@ const TambahPenugasan = () => {
 
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden min-h-[400px] flex flex-col">
         
-        {/* === STEP 1: PILIH KEGIATAN === */}
+        {/* STEP 1: PILIH KEGIATAN */}
         {step === 1 && (
           <div className="p-8 animate-fade-in-up flex-1 flex flex-col">
             <h2 className="text-lg font-bold text-gray-700 mb-6 flex items-center gap-2">
@@ -381,7 +387,10 @@ const TambahPenugasan = () => {
                 >
                   <option value="">-- Pilih Sub Kegiatan --</option>
                   {listSubKegiatan.map(sub => (
-                    <option key={sub.id} value={sub.id}>{sub.nama_sub_kegiatan} ({sub.periode || '-'})</option>
+                    <option key={sub.id} value={sub.id}>
+                        {sub.nama_sub_kegiatan} 
+                        {sub.tanggal_mulai ? ` (${new Date(sub.tanggal_mulai).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })})` : ''}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -395,18 +404,18 @@ const TambahPenugasan = () => {
           </div>
         )}
 
-        {/* === STEP 2: PILIH MITRA & ISI VOLUME === */}
+        {/* STEP 2: PILIH MITRA & VOLUME */}
         {step === 2 && (
           <div className="p-8 animate-fade-in-up flex-1 flex flex-col">
             
             <div className="flex justify-between items-center mb-6">
                <div className='text-sm text-gray-600'>
-                 Penugasan untuk: <span className="font-bold text-[#1A2A80] text-lg block">{allSubKegiatan.find(s => s.id === selectedSubId)?.nama_sub_kegiatan}</span>
+                 Penugasan untuk: <span className="font-bold text-[#1A2A80] text-lg block">{allSubKegiatan.find(s => String(s.id) === String(selectedSubId))?.nama_sub_kegiatan}</span>
                </div>
                <button onClick={() => setStep(1)} className="text-xs text-blue-600 underline hover:text-blue-800">Ganti Kegiatan</button>
             </div>
 
-            {/* --- INFO KUOTA & PROGRESS BAR --- */}
+            {/* INFO KUOTA */}
             <div className="mb-8 p-5 bg-gray-50 border border-gray-200 rounded-xl">
                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
                  <FaChartBar /> Informasi Kuota & Honorarium
@@ -434,8 +443,6 @@ const TambahPenugasan = () => {
                                   <p className="text-[10px] text-gray-400">per {h.nama_satuan}</p>
                                </div>
                             </div>
-                            
-                            {/* Progress Bar Volume */}
                             <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mb-1">
                                <div className={`h-full rounded-full transition-all duration-500 ${color}`} style={{ width: `${Math.min(percent, 100)}%` }}></div>
                             </div>
@@ -452,11 +459,18 @@ const TambahPenugasan = () => {
 
             <div className="flex flex-col md:flex-row gap-8 h-full">
               
-              {/* KOLOM KIRI: PENCARIAN MITRA */}
+              {/* KIRI: PENCARIAN */}
               <div className="md:w-1/3">
                 <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase flex items-center gap-2">
                   <FaSearch /> Tambah Mitra
                 </h3>
+                {targetYear && (
+                    <div className="mb-2">
+                        <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-[10px] px-2 py-1 rounded border border-blue-200 font-bold">
+                            <FaFilter size={10} /> Menampilkan Mitra Aktif Tahun {targetYear}
+                        </span>
+                    </div>
+                )}
                 <div className="relative">
                   <input 
                     type="text"
@@ -469,7 +483,9 @@ const TambahPenugasan = () => {
                   {showMitraDropdown && mitraSearch && (
                     <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-80 overflow-y-auto">
                       {filteredMitra.length === 0 ? (
-                        <div className="p-3 text-sm text-gray-500">Tidak ditemukan / Sudah Bertugas.</div>
+                        <div className="p-3 text-sm text-gray-500">
+                            Tidak ditemukan / Tidak aktif di tahun {targetYear}.
+                        </div>
                       ) : (
                         filteredMitra.map(m => {
                             const currentIncome = mitraIncomeMap[String(m.id)] || 0;
@@ -495,7 +511,7 @@ const TambahPenugasan = () => {
                                         <div className="mt-2">
                                             <div className="flex justify-between text-[10px] mb-1 text-gray-500">
                                                 <span>Rp {currentIncome.toLocaleString('id-ID')}</span>
-                                                <span>Batas Thn: Rp {limit.toLocaleString('id-ID')}</span>
+                                                <span>Limit Thn: Rp {limit.toLocaleString('id-ID')}</span>
                                             </div>
                                             <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                                                 <div className={`h-1.5 rounded-full ${percent > 90 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${Math.min(percent, 100)}%` }}></div>
@@ -511,7 +527,7 @@ const TambahPenugasan = () => {
                 </div>
               </div>
 
-              {/* KOLOM KANAN: DAFTAR SELEKSI */}
+              {/* KANAN: DAFTAR SELEKSI */}
               <div className="md:w-2/3 bg-gray-50 rounded-xl border border-gray-200 p-5 flex flex-col">
                 <div className="flex justify-between items-center mb-4">
                    <h3 className="text-sm font-bold text-gray-700 uppercase flex items-center gap-2">
@@ -558,8 +574,6 @@ const TambahPenugasan = () => {
                           </div>
 
                           <div className="mt-4 grid grid-cols-12 gap-3 items-end bg-gray-50 p-3 rounded-lg">
-                             
-                             {/* PILIH JABATAN */}
                              <div className="col-span-5">
                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Jabatan</label>
                                <select 
@@ -574,7 +588,6 @@ const TambahPenugasan = () => {
                                </select>
                              </div>
 
-                             {/* INPUT VOLUME (JUMLAH DITUGASKAN) */}
                              <div className="col-span-3">
                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Jumlah Tugas</label>
                                <div className="flex items-center">
@@ -591,7 +604,6 @@ const TambahPenugasan = () => {
                                </div>
                              </div>
                              
-                             {/* TOTAL HONOR ITEM */}
                              <div className="col-span-4 text-right">
                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Total Honor</label>
                                <div className={`text-sm font-bold flex items-center justify-end gap-1 ${isOverLimit ? 'text-red-600' : 'text-green-600'}`}>
@@ -601,7 +613,6 @@ const TambahPenugasan = () => {
                              </div>
                           </div>
 
-                          {/* BAR PROGRESS HONOR */}
                           {limit > 0 && (
                             <div className="mt-3 border-t border-gray-100 pt-2">
                                 <div className="flex justify-between text-[10px] text-gray-500 mb-1">
@@ -609,13 +620,11 @@ const TambahPenugasan = () => {
                                     <span>Batas Thn: {formatRupiah(limit)}</span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden flex">
-                                    {/* Bar Pendapatan Lama */}
                                     <div 
                                         className={`h-full ${percentCurrent > 90 ? 'bg-yellow-500' : 'bg-green-500'}`} 
                                         style={{ width: `${Math.min(percentCurrent, 100)}%` }}
                                         title="Pendapatan Saat Ini"
                                     ></div>
-                                    {/* Bar Pendapatan Baru */}
                                     <div 
                                         className={`h-full ${isOverLimit ? 'bg-red-500' : 'bg-blue-400'}`} 
                                         style={{ width: `${Math.min(percentNew, 100 - Math.min(percentCurrent, 100))}%` }}

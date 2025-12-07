@@ -1,36 +1,32 @@
-// src/controllers/spkController.js
 const { pool } = require('../config/db');
 
-// GET: Ambil daftar periode yang memiliki aktivitas (untuk menu accordion)
 exports.getSPKPeriods = async (req, res) => {
   try {
     const sql = `
-      SELECT DISTINCT periode 
+      SELECT DISTINCT DATE_FORMAT(tanggal_mulai, '%Y-%m') as periode 
       FROM subkegiatan 
-      WHERE periode IS NOT NULL AND periode != '' 
+      WHERE tanggal_mulai IS NOT NULL 
       ORDER BY periode DESC
     `;
     const [rows] = await pool.query(sql);
     res.json(rows);
   } catch (error) {
-    console.error("Error getSPKPeriods:", error);
+    console.error(error);
     res.status(500).json({ error: 'Gagal mengambil periode.' });
   }
 };
 
-// GET: Ambil Setting SPK berdasarkan Periode
 exports.getSPKSetting = async (req, res) => {
   const { periode } = req.params;
   try {
     const [rows] = await pool.query('SELECT * FROM spk_setting WHERE periode = ?', [periode]);
     res.json(rows.length > 0 ? rows[0] : null);
   } catch (error) {
-    console.error("Error getSPKSetting:", error);
+    console.error(error);
     res.status(500).json({ error: 'Gagal mengambil setting surat.' });
   }
 };
 
-// POST: Simpan/Update Setting SPK
 exports.saveSPKSetting = async (req, res) => {
   const { 
     periode, 
@@ -65,16 +61,14 @@ exports.saveSPKSetting = async (req, res) => {
     res.json({ message: 'Pengaturan surat berhasil disimpan.' });
 
   } catch (error) {
-    console.error("Error saveSPKSetting:", error);
+    console.error(error);
     res.status(500).json({ error: 'Gagal menyimpan pengaturan.' });
   }
 };
 
-// GET: Ambil Daftar Mitra Kandidat SPK di Periode Tertentu
 exports.getMitraByPeriod = async (req, res) => {
   const { periode } = req.params;
   try {
-    // UPDATE: Menghapus m.no_rekening dan m.nama_bank dari query
     const sql = `
       SELECT DISTINCT 
         m.id, 
@@ -84,32 +78,27 @@ exports.getMitraByPeriod = async (req, res) => {
       JOIN kelompok_penugasan kp ON m.id = kp.id_mitra
       JOIN penugasan p ON kp.id_penugasan = p.id
       JOIN subkegiatan s ON p.id_subkegiatan = s.id
-      WHERE s.periode = ?
+      WHERE DATE_FORMAT(s.tanggal_mulai, '%Y-%m') = ?
       ORDER BY m.nama_lengkap ASC
     `;
     const [rows] = await pool.query(sql, [periode]);
     res.json(rows);
   } catch (error) {
-    console.error("Error getMitraByPeriod:", error);
+    console.error(error);
     res.status(500).json({ error: 'Gagal mengambil daftar mitra.' });
   }
 };
 
-// GET: Data Lengkap untuk Cetak (Preview)
 exports.getPrintData = async (req, res) => {
   const { periode, id_mitra } = req.params;
 
   try {
-    // 1. Ambil Data Mitra
     const [mitraRows] = await pool.query('SELECT * FROM mitra WHERE id = ?', [id_mitra]);
     if (mitraRows.length === 0) return res.status(404).json({ error: 'Mitra tidak ditemukan' });
 
-    // 2. Ambil Setting Surat
     const [settingRows] = await pool.query('SELECT * FROM spk_setting WHERE periode = ?', [periode]);
     const setting = settingRows.length > 0 ? settingRows[0] : {};
 
-    // 3. Ambil Rincian Tugas & Honor (Untuk Lampiran Tabel)
-    // UPDATE: Menggunakan kp.volume_tugas dan perhitungan (h.tarif * kp.volume_tugas)
     const sqlTasks = `
       SELECT 
         s.nama_sub_kegiatan,
@@ -126,7 +115,7 @@ exports.getPrintData = async (req, res) => {
       JOIN kegiatan k ON s.id_kegiatan = k.id
       LEFT JOIN honorarium h ON (h.id_subkegiatan = s.id AND h.kode_jabatan = kp.kode_jabatan)
       LEFT JOIN satuan_kegiatan sat ON h.id_satuan = sat.id
-      WHERE kp.id_mitra = ? AND s.periode = ?
+      WHERE kp.id_mitra = ? AND DATE_FORMAT(s.tanggal_mulai, '%Y-%m') = ?
     `;
     
     const [tasks] = await pool.query(sqlTasks, [id_mitra, periode]);
@@ -138,7 +127,7 @@ exports.getPrintData = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Error getPrintData:", error);
+    console.error(error);
     res.status(500).json({ error: 'Gagal mengambil data cetak.' });
   }
 };

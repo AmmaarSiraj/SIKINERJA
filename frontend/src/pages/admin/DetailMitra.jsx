@@ -5,7 +5,8 @@ import axios from 'axios';
 import { 
   FaArrowLeft, FaTrash, FaUserTie, FaIdCard, FaPhone, FaEnvelope, 
   FaCoins, FaBriefcase, FaCalendarAlt, FaExclamationCircle,
-  FaHistory, FaChevronDown, FaChevronUp, FaVenusMars, FaGraduationCap, FaIdBadge
+  FaHistory, FaChevronDown, FaChevronUp, FaVenusMars, FaGraduationCap, FaIdBadge,
+  FaChartLine, FaChevronRight
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -15,16 +16,23 @@ const DetailMitra = () => {
   const navigate = useNavigate();
   
   const [mitra, setMitra] = useState(null);
-  const [tasks, setTasks] = useState([]);
+  const [tasks, setTasks] = useState([]); // Tugas Bulan Ini
   
-  // State Keuangan (Kalkulasi Honor)
-  const [totalPendapatan, setTotalPendapatan] = useState(0);
+  // State Keuangan
+  const [totalPendapatanTahunIni, setTotalPendapatanTahunIni] = useState(0); 
+  const [totalPendapatanBulanIni, setTotalPendapatanBulanIni] = useState(0); 
   const [limitPendapatan, setLimitPendapatan] = useState(0);
+  
+  // Label Waktu
   const [currentYearLabel, setCurrentYearLabel] = useState('');
+  const [currentMonthLabel, setCurrentMonthLabel] = useState('');
 
-  // State Riwayat
+  // State Riwayat (Nested: Tahun -> Bulan -> Tasks)
   const [historyData, setHistoryData] = useState({});
-  const [expandedHistory, setExpandedHistory] = useState(null);
+  
+  // State Accordion
+  const [expandedYear, setExpandedYear] = useState(null); // String "YYYY"
+  const [expandedMonth, setExpandedMonth] = useState(null); // String "YYYY-MM"
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -36,10 +44,17 @@ const DetailMitra = () => {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
 
-        // 1. Tentukan Tahun Aktif
+        // 1. Tentukan Waktu Saat Ini
         const now = new Date();
-        const currentYear = now.getFullYear().toString(); // "2025"
+        const currentYear = now.getFullYear().toString(); 
+        const currentMonthIdx = now.getMonth(); 
+        const monthNames = [
+            "Januari", "Februari", "Maret", "April", "Mei", "Juni", 
+            "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+        ];
+        
         setCurrentYearLabel(currentYear);
+        setCurrentMonthLabel(monthNames[currentMonthIdx]);
 
         const [resMitra, resKelompok, resPenugasan, resSub, resHonor, resJabatan, resAturan] = await Promise.all([
           axios.get(`${API_URL}/api/mitra/${id}`, { headers }),
@@ -59,12 +74,12 @@ const DetailMitra = () => {
 
         const subMap = {};
         resSub.data.forEach(s => {
-            // Ambil tahun dari periode sub kegiatan (misal: "2025-02" -> "2025")
-            const yearStr = s.periode ? s.periode.split('-')[0] : 'Unknown';
+            const yearStr = s.tanggal_mulai ? new Date(s.tanggal_mulai).getFullYear().toString() : 'Unknown';
             subMap[s.id] = { 
                 nama: s.nama_sub_kegiatan, 
                 induk: s.nama_kegiatan, 
-                periodeFull: s.periode,
+                periodeFull: s.periode, 
+                tanggal_mulai: s.tanggal_mulai, 
                 tahun: yearStr
             };
         });
@@ -75,17 +90,18 @@ const DetailMitra = () => {
         // 3. Map Aturan Batas Honor (Key = TAHUN)
         const ruleMap = {};
         resAturan.data.forEach(r => { 
-            // Backend mengirim 'tahun' atau 'periode' (4 digit)
             const yearKey = r.tahun || r.periode;
             ruleMap[String(yearKey)] = Number(r.batas_honor); 
         });
 
-        // Set Limit Tahun Ini
         setLimitPendapatan(ruleMap[currentYear] || 0);
 
-        // 4. Filter & Grouping Tugas Berdasarkan TAHUN
-        const currentTasksArr = [];
-        let currentTotal = 0;
+        // 4. Filter & Grouping Tugas (Nested)
+        const currentMonthTasksArr = [];
+        let calcYearlyTotal = 0;
+        let calcMonthlyTotal = 0;
+        
+        // Struktur: { "2024": { limit: X, totalYear: Y, months: { "0": { name: "Jan", total: Z, tasks: [] } } } }
         const historyGroup = {};
 
         resKelompok.data.forEach(k => {
@@ -99,13 +115,20 @@ const DetailMitra = () => {
             const honorRule = resHonor.data.find(h => h.id_subkegiatan == idSub && h.kode_jabatan === k.kode_jabatan);
             const tarifSatuan = honorRule ? Number(honorRule.tarif) : 0;
             
-            // Hitung Total: Tarif x Volume
             const vol = k.volume_tugas ? Number(k.volume_tugas) : 0;
-            // Fallback volume 1 jika data lama belum punya volume
             const multiplier = vol > 0 ? vol : 1; 
             const totalHonorTugas = tarifSatuan * multiplier;
 
             const namaJabatan = jobMap[k.kode_jabatan] || k.kode_jabatan || 'Anggota';
+
+            let taskYear = 'Unknown';
+            let taskMonthIdx = -1;
+            
+            if (subInfo.tanggal_mulai) {
+                const d = new Date(subInfo.tanggal_mulai);
+                taskYear = d.getFullYear().toString();
+                taskMonthIdx = d.getMonth();
+            }
 
             const taskItem = {
                 id: k.id_kelompok,
@@ -115,29 +138,51 @@ const DetailMitra = () => {
                 tarifSatuan: tarifSatuan,
                 volume: vol,
                 totalHonor: totalHonorTugas,
-                periodeLabel: subInfo.periodeFull // Untuk display detail
+                tanggalMulai: subInfo.tanggal_mulai,
+                periodeLabel: subInfo.tanggal_mulai ? new Date(subInfo.tanggal_mulai).toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'}) : '-'
             };
 
-            // Cek apakah tugas ini masuk Tahun Berjalan atau Riwayat
-            if (subInfo.tahun === currentYear) {
-                currentTasksArr.push(taskItem);
-                currentTotal += totalHonorTugas;
+            // A. TUGAS TAHUN INI (Untuk Progress Bar Utama)
+            if (taskYear === currentYear) {
+                calcYearlyTotal += totalHonorTugas;
+            }
+
+            // B. KLASIFIKASI "BULAN INI" vs "RIWAYAT LAINNYA"
+            const isCurrentMonthTask = (taskYear === currentYear && taskMonthIdx === currentMonthIdx);
+
+            if (isCurrentMonthTask) {
+                currentMonthTasksArr.push(taskItem);
+                calcMonthlyTotal += totalHonorTugas;
             } else {
-                // Grouping History per Tahun
-                if (!historyGroup[subInfo.tahun]) {
-                    historyGroup[subInfo.tahun] = { 
-                        tasks: [], 
-                        total: 0,
-                        limit: ruleMap[subInfo.tahun] || 0 
+                // Masuk ke Riwayat (Nested Grouping)
+                if (!historyGroup[taskYear]) {
+                    historyGroup[taskYear] = {
+                        limit: ruleMap[taskYear] || 0,
+                        totalYear: 0,
+                        months: {}
                     };
                 }
-                historyGroup[subInfo.tahun].tasks.push(taskItem);
-                historyGroup[subInfo.tahun].total += totalHonorTugas;
+
+                // Update Total Tahun di Riwayat
+                historyGroup[taskYear].totalYear += totalHonorTugas;
+
+                // Grouping per Bulan
+                if (!historyGroup[taskYear].months[taskMonthIdx]) {
+                    historyGroup[taskYear].months[taskMonthIdx] = {
+                        name: monthNames[taskMonthIdx],
+                        totalMonth: 0,
+                        tasks: []
+                    };
+                }
+
+                historyGroup[taskYear].months[taskMonthIdx].tasks.push(taskItem);
+                historyGroup[taskYear].months[taskMonthIdx].totalMonth += totalHonorTugas;
             }
         });
 
-        setTasks(currentTasksArr);
-        setTotalPendapatan(currentTotal);
+        setTasks(currentMonthTasksArr);
+        setTotalPendapatanTahunIni(calcYearlyTotal);
+        setTotalPendapatanBulanIni(calcMonthlyTotal);
         setHistoryData(historyGroup);
 
       } catch (err) {
@@ -160,11 +205,17 @@ const DetailMitra = () => {
     } catch (err) { alert("Gagal menghapus."); }
   };
 
-  const toggleHistory = (yearKey) => {
-    setExpandedHistory(expandedHistory === yearKey ? null : yearKey);
+  const toggleYear = (yearKey) => {
+    setExpandedYear(expandedYear === yearKey ? null : yearKey);
+    setExpandedMonth(null); // Reset bulan saat ganti tahun
   };
 
-  // Helper Format Gender
+  const toggleMonth = (e, yearKey, monthIdx) => {
+    e.stopPropagation(); // Mencegah toggle tahun tertutup
+    const key = `${yearKey}-${monthIdx}`;
+    setExpandedMonth(expandedMonth === key ? null : key);
+  };
+
   const formatGender = (val) => {
     if (val === 'Lk') return 'Laki-laki';
     if (val === 'Pr') return 'Perempuan';
@@ -185,7 +236,7 @@ const DetailMitra = () => {
   if (error) return <div className="text-center py-10 text-red-600">{error}</div>;
   if (!mitra) return <div className="text-center py-10 text-gray-500">Data tidak ditemukan.</div>;
 
-  const percentage = limitPendapatan > 0 ? Math.min((totalPendapatan / limitPendapatan) * 100, 100) : 0;
+  const percentage = limitPendapatan > 0 ? Math.min((totalPendapatanTahunIni / limitPendapatan) * 100, 100) : 0;
 
   return (
     <div className="max-w-5xl mx-auto w-full pb-20">
@@ -243,7 +294,7 @@ const DetailMitra = () => {
                 </div>
             </div>
 
-            {/* KOLOM KANAN: Latar Belakang & Status */}
+            {/* KOLOM KANAN: Latar Belakang & Performa */}
             <div>
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-2 border-b border-gray-100 pb-2"><FaBriefcase /> Latar Belakang & Performa</h3>
                 
@@ -268,29 +319,37 @@ const DetailMitra = () => {
                     {/* Progress Honor Tahun Ini */}
                     <div className="mt-6 pt-6 border-t border-gray-100">
                         <label className="block text-xs text-gray-500 mb-3 font-medium flex justify-between items-center">
-                            <span className="flex items-center gap-1 uppercase font-bold text-gray-400"><FaCoins size={12} /> Akumulasi Honor Tahun {currentYearLabel}</span>
-                            {limitPendapatan > 0 && <span className="text-[10px] bg-blue-50 px-2 py-0.5 rounded text-blue-600 font-bold border border-blue-100">Batas: {formatRupiah(limitPendapatan)}</span>}
+                            <span className="flex items-center gap-1 uppercase font-bold text-gray-400"><FaCoins size={12} /> Honor Bulan {currentMonthLabel} {currentYearLabel}</span>
                         </label>
                         
-                        <div className="flex items-baseline gap-1 mb-2">
-                            <span className="text-3xl font-extrabold text-gray-800">{formatRupiah(totalPendapatan)}</span>
-                            <span className="text-xs text-gray-400 font-medium">total tahun berjalan</span>
+                        <div className="flex items-baseline gap-1 mb-4">
+                            <span className="text-3xl font-extrabold text-[#1A2A80]">{formatRupiah(totalPendapatanBulanIni)}</span>
+                            <span className="text-xs text-gray-400 font-medium">pendapatan bulan ini</span>
                         </div>
 
-                        {limitPendapatan > 0 ? (
-                            <div className="relative pt-1">
-                                <div className="overflow-hidden h-3 text-xs flex rounded-full bg-gray-200">
-                                    <div style={{ width: `${percentage}%` }} className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-500 ${getProgressColor(percentage)}`}></div>
-                                </div>
-                                <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-medium">
-                                    <span>0%</span>
-                                    <span className={`${percentage > 100 ? 'text-red-500 font-bold' : ''}`}>{percentage.toFixed(1)}% Terpakai</span>
-                                    <span>100%</span>
-                                </div>
+                        {/* Progress Limit Tahunan */}
+                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                            <div className="flex justify-between items-end mb-1">
+                                <span className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1"><FaChartLine /> Limit Tahunan ({currentYearLabel})</span>
+                                {limitPendapatan > 0 && <span className="text-[10px] text-blue-600 font-bold bg-white px-2 py-0.5 rounded border border-blue-100">Batas: {formatRupiah(limitPendapatan)}</span>}
                             </div>
-                        ) : (
-                            <div className="flex items-center gap-2 text-xs text-yellow-600 bg-yellow-50 p-2 rounded border border-yellow-100"><FaExclamationCircle /> Batas honor tahun ini belum diatur.</div>
-                        )}
+
+                            {limitPendapatan > 0 ? (
+                                <>
+                                    <div className="relative pt-1">
+                                        <div className="overflow-hidden h-2.5 text-xs flex rounded-full bg-gray-200">
+                                            <div style={{ width: `${percentage}%` }} className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-500 ${getProgressColor(percentage)}`}></div>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-medium">
+                                        <span>Terpakai: {formatRupiah(totalPendapatanTahunIni)}</span>
+                                        <span className={`${percentage > 100 ? 'text-red-500 font-bold' : ''}`}>{percentage.toFixed(1)}%</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex items-center gap-2 text-xs text-yellow-600 mt-1"><FaExclamationCircle /> Batas honor tahunan belum diatur.</div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -301,25 +360,25 @@ const DetailMitra = () => {
         </div>
       </div>
 
-      {/* CARD 2: TABEL TUGAS TAHUN INI */}
+      {/* CARD 2: TABEL TUGAS BULAN INI */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8">
         <div className="px-8 py-5 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
             <FaCalendarAlt className="text-[#1A2A80]" />
-            <h3 className="font-bold text-gray-800">Daftar Tugas Tahun Ini ({currentYearLabel})</h3>
+            <h3 className="font-bold text-gray-800">Daftar Tugas Bulan Ini ({currentMonthLabel} {currentYearLabel})</h3>
         </div>
         <div className="overflow-x-auto">
             <table className="min-w-full text-sm text-left">
                 <thead className="bg-white border-b border-gray-100">
                     <tr>
                         <th className="px-8 py-3 font-bold text-gray-500">Nama Kegiatan / Sub</th>
-                        <th className="px-8 py-3 font-bold text-gray-500 text-center">Periode</th>
+                        <th className="px-8 py-3 font-bold text-gray-500 text-center">Tanggal Mulai</th>
                         <th className="px-8 py-3 font-bold text-gray-500">Peran & Volume</th>
                         <th className="px-8 py-3 font-bold text-gray-500 text-right">Total Honor</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                     {tasks.length === 0 ? (
-                        <tr><td colSpan="4" className="px-8 py-8 text-center text-gray-400 italic">Belum ada tugas di tahun ini.</td></tr>
+                        <tr><td colSpan="4" className="px-8 py-8 text-center text-gray-400 italic">Belum ada tugas untuk bulan ini.</td></tr>
                     ) : (
                         tasks.map((task, idx) => (
                             <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
@@ -342,8 +401,8 @@ const DetailMitra = () => {
                 {tasks.length > 0 && (
                     <tfoot className="bg-gray-50 border-t border-gray-200">
                         <tr>
-                            <td colSpan="3" className="px-8 py-3 text-right font-bold text-gray-600">Total Tahun {currentYearLabel}:</td>
-                            <td className="px-8 py-3 text-right font-extrabold text-green-700">{formatRupiah(totalPendapatan)}</td>
+                            <td colSpan="3" className="px-8 py-3 text-right font-bold text-gray-600">Total Bulan {currentMonthLabel}:</td>
+                            <td className="px-8 py-3 text-right font-extrabold text-green-700">{formatRupiah(totalPendapatanBulanIni)}</td>
                         </tr>
                     </tfoot>
                 )}
@@ -351,71 +410,101 @@ const DetailMitra = () => {
         </div>
       </div>
 
-      {/* CARD 3: RIWAYAT PENUGASAN TAHUN LALU (ACCORDION) */}
+      {/* CARD 3: RIWAYAT PENUGASAN LAINNYA (BERTINGKAT: TAHUN -> BULAN -> KEGIATAN) */}
       <div className="space-y-4">
-        <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2 px-2"><FaHistory /> Riwayat Penugasan Tahun Sebelumnya</h3>
+        <h3 className="text-lg font-bold text-gray-700 flex items-center gap-2 px-2"><FaHistory /> Riwayat Penugasan Lainnya</h3>
         
         {Object.keys(historyData).length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 italic shadow-sm">Belum ada riwayat penugasan tahun lalu.</div>
+            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 italic shadow-sm">Belum ada riwayat penugasan lainnya.</div>
         ) : (
+            // LEVEL 1: TAHUN
             Object.keys(historyData).sort().reverse().map(yearKey => {
-                const group = historyData[yearKey];
-                const isOpen = expandedHistory === yearKey;
+                const yearGroup = historyData[yearKey];
+                const isYearOpen = expandedYear === yearKey;
 
                 return (
-                    <div key={yearKey} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div key={yearKey} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-3">
                         
+                        {/* Header Tahun */}
                         <div 
-                            onClick={() => toggleHistory(yearKey)}
-                            className={`px-6 py-4 flex justify-between items-center cursor-pointer transition-colors ${isOpen ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                            onClick={() => toggleYear(yearKey)}
+                            className={`px-6 py-4 flex justify-between items-center cursor-pointer transition-colors ${isYearOpen ? 'bg-blue-50 border-b border-blue-100' : 'hover:bg-gray-50'}`}
                         >
                             <div className="flex items-center gap-4">
-                                <div className={`p-2 rounded-lg ${isOpen ? 'bg-[#1A2A80] text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                <div className={`p-2 rounded-lg ${isYearOpen ? 'bg-[#1A2A80] text-white' : 'bg-gray-200 text-gray-500'}`}>
                                     <FaCalendarAlt />
                                 </div>
                                 <div>
                                     <h4 className="font-bold text-gray-800 text-lg">Tahun {yearKey}</h4>
-                                    <p className="text-xs text-gray-500">{group.tasks.length} Kegiatan Selesai</p>
+                                    <p className="text-xs text-gray-500">Total Pendapatan: <span className="font-bold">{formatRupiah(yearGroup.totalYear)}</span></p>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <p className="text-sm font-bold text-green-600">
-                                    {formatRupiah(group.total)} 
-                                    <span className="text-gray-400 text-xs font-normal ml-1">
-                                       / Batas: {group.limit > 0 ? formatRupiah(group.limit) : '-'}
-                                    </span>
-                                </p>
-                                <div className="text-gray-400 mt-1 flex justify-end">{isOpen ? <FaChevronUp /> : <FaChevronDown />}</div>
+                            <div className="text-right flex items-center gap-3">
+                                <span className="text-xs text-gray-400 font-mono hidden sm:inline">Batas Thn: {yearGroup.limit > 0 ? formatRupiah(yearGroup.limit) : '-'}</span>
+                                <div className="text-gray-400">{isYearOpen ? <FaChevronUp /> : <FaChevronDown />}</div>
                             </div>
                         </div>
 
-                        {isOpen && (
-                            <div className="border-t border-gray-100 animate-fade-in-down">
-                                <table className="min-w-full text-sm text-left">
-                                    <thead className="bg-gray-50 text-gray-500">
-                                        <tr>
-                                            <th className="px-6 py-3 font-semibold">Nama Kegiatan</th>
-                                            <th className="px-6 py-3 font-semibold">Periode</th>
-                                            <th className="px-6 py-3 font-semibold">Jabatan & Volume</th>
-                                            <th className="px-6 py-3 font-semibold text-right">Honor</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {group.tasks.map((task, idx) => (
-                                            <tr key={idx} className="hover:bg-gray-50">
-                                                <td className="px-6 py-3 text-gray-800">
-                                                    <span className="font-medium">{task.kegiatan}</span>
-                                                    <span className="block text-[10px] text-gray-400">{task.induk}</span>
-                                                </td>
-                                                <td className="px-6 py-3 text-gray-600 font-mono text-xs">{task.periodeLabel}</td>
-                                                <td className="px-6 py-3 text-blue-600">
-                                                    {task.jabatan} <span className="text-gray-400 text-xs">({task.volume} vol)</span>
-                                                </td>
-                                                <td className="px-6 py-3 text-right font-mono text-gray-600">{formatRupiah(task.totalHonor)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                        {/* LEVEL 2: DAFTAR BULAN */}
+                        {isYearOpen && (
+                            <div className="bg-gray-50/30 animate-fade-in-down">
+                                {Object.keys(yearGroup.months).sort((a,b) => b - a).map(monthIdx => {
+                                    const monthGroup = yearGroup.months[monthIdx];
+                                    const monthKey = `${yearKey}-${monthIdx}`;
+                                    const isMonthOpen = expandedMonth === monthKey;
+
+                                    return (
+                                        <div key={monthKey} className="border-b border-gray-100 last:border-none">
+                                            {/* Header Bulan */}
+                                            <div 
+                                                onClick={(e) => toggleMonth(e, yearKey, monthIdx)}
+                                                className={`px-6 py-3 pl-12 flex justify-between items-center cursor-pointer transition-colors hover:bg-blue-50/50 ${isMonthOpen ? 'bg-blue-50/50' : ''}`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <FaChevronRight className={`text-xs text-gray-400 transition-transform ${isMonthOpen ? 'rotate-90' : ''}`} />
+                                                    <span className="font-bold text-gray-700 text-sm">{monthGroup.name}</span>
+                                                </div>
+                                                <div className="text-sm font-medium text-gray-600">
+                                                    <span className="text-xs text-gray-400 mr-2">Pendapatan:</span>
+                                                    <span className="font-bold text-[#1A2A80]">{formatRupiah(monthGroup.totalMonth)}</span>
+                                                    <span className="text-xs text-gray-400 mx-1">/</span>
+                                                    <span className="text-xs text-gray-400">Batas Thn: {yearGroup.limit > 0 ? formatRupiah(yearGroup.limit) : '-'}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* LEVEL 3: TABEL KEGIATAN */}
+                                            {isMonthOpen && (
+                                                <div className="px-6 pb-4 pl-16 animate-fade-in-down">
+                                                    <table className="min-w-full text-xs text-left bg-white rounded-lg border border-gray-200 overflow-hidden">
+                                                        <thead className="bg-gray-100 text-gray-500">
+                                                            <tr>
+                                                                <th className="px-4 py-2 font-semibold">Kegiatan</th>
+                                                                <th className="px-4 py-2 font-semibold text-center">Tgl Mulai</th>
+                                                                <th className="px-4 py-2 font-semibold">Peran</th>
+                                                                <th className="px-4 py-2 font-semibold text-right">Honor</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100">
+                                                            {monthGroup.tasks.map((task, idx) => (
+                                                                <tr key={idx} className="hover:bg-gray-50">
+                                                                    <td className="px-4 py-2 text-gray-800">
+                                                                        <span className="font-bold block">{task.kegiatan}</span>
+                                                                        <span className="text-[10px] text-gray-400">{task.induk}</span>
+                                                                    </td>
+                                                                    <td className="px-4 py-2 text-center text-gray-500 font-mono">{task.periodeLabel}</td>
+                                                                    <td className="px-4 py-2 text-blue-600">
+                                                                        {task.jabatan} <span className="text-gray-400">({task.volume} vol)</span>
+                                                                    </td>
+                                                                    <td className="px-4 py-2 text-right font-mono text-gray-600">{formatRupiah(task.totalHonor)}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

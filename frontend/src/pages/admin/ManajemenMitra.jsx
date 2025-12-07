@@ -1,12 +1,13 @@
+// src/pages/admin/ManajemenMitra.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom'; 
 import * as XLSX from 'xlsx'; 
 import Swal from 'sweetalert2';
 import { 
-  FaDownload, FaFileUpload, FaTrash, FaUserTie,
-  FaCalendarAlt, FaList, FaBriefcase, FaCog, FaTimes, FaSave, FaPlus,
-  FaFileExcel, FaEdit, FaCloudUploadAlt, FaCheckCircle
+  FaDownload, FaFileUpload, FaTrash, 
+  FaCog, FaTimes, FaSave, FaPlus,
+  FaFileExcel, FaCloudUploadAlt, FaCheckCircle
 } from 'react-icons/fa';
 import PartTableMitra from '../../components/admin/PartTabelMitra';
 
@@ -14,9 +15,6 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const ManajemenMitra = () => {
   const [mitraList, setMitraList] = useState([]);
-  const [viewMode, setViewMode] = useState('list');
-  const [periodData, setPeriodData] = useState({});
-  const [loadingPeriod, setLoadingPeriod] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -187,69 +185,6 @@ const ManajemenMitra = () => {
     }
   };
 
-  const fetchPeriodData = async () => {
-    if (Object.keys(periodData).length > 0) return;
-    setLoadingPeriod(true);
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const [resSub, resPenugasan, resKelompok] = await Promise.all([
-        axios.get(`${API_URL}/api/subkegiatan`, { headers }),
-        axios.get(`${API_URL}/api/penugasan`, { headers }),
-        axios.get(`${API_URL}/api/kelompok-penugasan`, { headers })
-      ]);
-
-      const subMap = {};
-      const subNameMap = {};
-      resSub.data.forEach(s => {
-        subMap[s.id] = s.periode;
-        subNameMap[s.id] = s.nama_sub_kegiatan;
-      });
-
-      const taskMap = {};
-      resPenugasan.data.forEach(t => {
-        if (subMap[t.id_subkegiatan]) {
-            taskMap[t.id_penugasan] = {
-                periode: subMap[t.id_subkegiatan],
-                nama_sub: subNameMap[t.id_subkegiatan]
-            };
-        }
-      });
-
-      const grouped = {};
-      resKelompok.data.forEach(k => {
-        const taskInfo = taskMap[k.id_penugasan];
-        if (taskInfo && taskInfo.periode) {
-            const periodeKey = taskInfo.periode;
-            if (!grouped[periodeKey]) grouped[periodeKey] = [];
-            grouped[periodeKey].push({
-                id_mitra: k.id_mitra,
-                tugas: taskInfo.nama_sub,
-                jabatan: k.kode_jabatan 
-            });
-        }
-      });
-      setPeriodData(grouped);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingPeriod(false);
-    }
-  };
-
-  const formatPeriodeLabel = (periodeStr) => {
-    if (!periodeStr) return '-';
-    if (periodeStr.includes('-')) {
-        const parts = periodeStr.split('-');
-        if (parts.length === 2) {
-          const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1);
-          return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-        }
-    }
-    return `Tahun ${periodeStr}`;
-  };
-
   const handleDownloadTemplate = () => {
     const templateData = [
       {
@@ -346,7 +281,6 @@ const ManajemenMitra = () => {
         <div className="flex flex-wrap gap-2 justify-end">
           <button onClick={() => navigate('/admin/mitra/tambah')} className="flex items-center gap-2 px-4 py-2 bg-[#1A2A80] text-white rounded-lg text-sm font-bold hover:bg-blue-900 transition shadow-sm"><FaPlus /> Tambah Mitra</button>
           <button onClick={handleOpenRuleModal} className="flex items-center gap-2 px-4 py-2 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-sm font-bold hover:bg-yellow-100 transition shadow-sm"><FaCog /> Atur Batas Honor</button>
-          <button onClick={() => { if (viewMode === 'list') { setViewMode('period'); fetchPeriodData(); } else { setViewMode('list'); }}} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm border ${viewMode === 'period' ? 'bg-blue-50 text-[#1A2A80] border-[#1A2A80]' : 'bg-white text-gray-600 border-gray-200'}`}>{viewMode === 'list' ? <><FaCalendarAlt /> Mode Periode</> : <><FaList /> Mode Daftar</>}</button>
           
           <button onClick={handleDownloadTemplate} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-green-700 border border-green-200 px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm"><FaFileExcel /> Template</button>
           <button onClick={handleExport} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 transition shadow-sm"><FaDownload /> Export</button>
@@ -360,44 +294,13 @@ const ManajemenMitra = () => {
       {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6 border border-red-100">{error}</div>}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {viewMode === 'list' ? (
-            <PartTableMitra 
-                data={mitraList} 
-                onEdit={(id) => navigate(`/admin/mitra/edit/${id}`)}
-                onDelete={(id, year) => handleDelete(id, year)}
-                onDetail={(id) => navigate(`/admin/mitra/${id}`)}
-            />
-        ) : (
-            <div className="space-y-0 divide-y divide-gray-200">
-                {loadingPeriod ? <div className="p-10 text-center text-gray-500">Memuat...</div> : 
-                 Object.keys(periodData).sort().reverse().map(periodeKey => {
-                    const mitraInPeriod = periodData[periodeKey];
-                    return (
-                        <div key={periodeKey}>
-                            <div className="bg-gray-50 px-6 py-3 flex items-center gap-3 border-l-4 border-[#1A2A80]">
-                                <FaCalendarAlt className="text-[#1A2A80]" />
-                                <h3 className="font-bold text-gray-800 text-lg">{formatPeriodeLabel(periodeKey)}</h3>
-                                <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded border shadow-sm">
-                                    {mitraInPeriod.length} Mitra Bertugas
-                                </span>
-                            </div>
-                            <table className="min-w-full">
-                                <tbody className="divide-y divide-gray-100">
-                                    {mitraInPeriod.map((item, idx) => (
-                                        <tr key={idx} onClick={() => navigate(`/admin/mitra/${item.id_mitra}`)} className="hover:bg-blue-50/30 cursor-pointer">
-                                            <td className="px-6 py-3 pl-12">
-                                                <div className="font-bold text-gray-800 text-sm">{item.nama_mitra}</div>
-                                                <div className="text-xs text-gray-500">{item.tugas} ({item.jabatan})</div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    );
-                })}
-            </div>
-        )}
+        {/* Hanya menampilkan Tabel Mode List */}
+        <PartTableMitra 
+            data={mitraList} 
+            onEdit={(id) => navigate(`/admin/mitra/edit/${id}`)}
+            onDelete={(id, year) => handleDelete(id, year)}
+            onDetail={(id) => navigate(`/admin/mitra/${id}`)}
+        />
       </div>
 
       {showImportModal && (

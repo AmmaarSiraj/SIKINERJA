@@ -1,13 +1,12 @@
-// src/pages/admin/ManajemenMitra.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom'; 
 import * as XLSX from 'xlsx'; 
 import Swal from 'sweetalert2';
 import { 
-  FaDownload, FaFileUpload, FaTrash, 
-  FaCog, FaTimes, FaSave, FaPlus,
-  FaFileExcel, FaCloudUploadAlt, FaCheckCircle
+  FaDownload, FaFileUpload, 
+  FaTimes, FaPlus,
+  FaFileExcel, FaCheckCircle, FaCloudUploadAlt
 } from 'react-icons/fa';
 import PartTableMitra from '../../components/admin/PartTabelMitra';
 
@@ -19,11 +18,6 @@ const ManajemenMitra = () => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   
-  const [showModalRule, setShowModalRule] = useState(false);
-  const [rules, setRules] = useState([]);
-  const [newRule, setNewRule] = useState({ tahun: new Date().getFullYear(), batas_honor: '' });
-  const [loadingRules, setLoadingRules] = useState(false);
-
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importYear, setImportYear] = useState('');
@@ -49,59 +43,6 @@ const ManajemenMitra = () => {
   };
 
   useEffect(() => { fetchMitra(); }, []);
-
-  const fetchRules = async () => {
-    setLoadingRules(true);
-    try {
-        const res = await axios.get(`${API_URL}/api/aturan-periode`);
-        setRules(res.data);
-    } catch (err) {
-        console.error(err);
-    } finally {
-        setLoadingRules(false);
-    }
-  };
-
-  const handleOpenRuleModal = () => {
-    setShowModalRule(true);
-    fetchRules();
-  };
-
-  const handleSaveRule = async () => {
-    if (!newRule.tahun || !newRule.batas_honor) {
-        return Swal.fire("Gagal", "Lengkapi data tahun dan nominal batas honor.", "warning");
-    }
-    if (!/^\d{4}$/.test(newRule.tahun)) {
-        return Swal.fire("Gagal", "Format tahun harus 4 digit angka.", "warning");
-    }
-    try {
-        await axios.post(`${API_URL}/api/aturan-periode`, newRule);
-        setNewRule({ tahun: new Date().getFullYear(), batas_honor: '' });
-        fetchRules();
-        Swal.fire("Sukses", "Aturan batas honor tahunan berhasil disimpan.", "success");
-    } catch (err) {
-        Swal.fire("Gagal", err.response?.data?.error || "Gagal menyimpan.", "error");
-    }
-  };
-
-  const handleDeleteRule = async (id) => {
-    const result = await Swal.fire({
-        title: 'Hapus Aturan?', 
-        text: "Data ini akan dihapus.", 
-        icon: 'warning', 
-        showCancelButton: true, 
-        confirmButtonColor: '#d33'
-    });
-    if (result.isConfirmed) {
-        try {
-            await axios.delete(`${API_URL}/api/aturan-periode/${id}`);
-            fetchRules();
-            Swal.fire("Terhapus", "", "success");
-        } catch (err) {
-            Swal.fire("Gagal", "Tidak bisa menghapus aturan.", "error");
-        }
-    }
-  };
 
   const handleOpenImport = () => {
     setImportFile(null);
@@ -280,7 +221,6 @@ const ManajemenMitra = () => {
         <div className="text-gray-500 text-sm">Database seluruh mitra statistik.</div>
         <div className="flex flex-wrap gap-2 justify-end">
           <button onClick={() => navigate('/admin/mitra/tambah')} className="flex items-center gap-2 px-4 py-2 bg-[#1A2A80] text-white rounded-lg text-sm font-bold hover:bg-blue-900 transition shadow-sm"><FaPlus /> Tambah Mitra</button>
-          <button onClick={handleOpenRuleModal} className="flex items-center gap-2 px-4 py-2 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-sm font-bold hover:bg-yellow-100 transition shadow-sm"><FaCog /> Atur Batas Honor</button>
           
           <button onClick={handleDownloadTemplate} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-green-700 border border-green-200 px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm"><FaFileExcel /> Template</button>
           <button onClick={handleExport} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 transition shadow-sm"><FaDownload /> Export</button>
@@ -294,7 +234,6 @@ const ManajemenMitra = () => {
       {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6 border border-red-100">{error}</div>}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {/* Hanya menampilkan Tabel Mode List */}
         <PartTableMitra 
             data={mitraList} 
             onEdit={(id) => navigate(`/admin/mitra/edit/${id}`)}
@@ -339,37 +278,6 @@ const ManajemenMitra = () => {
             </div>
         </div>
       )}
-
-      {showModalRule && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in-up">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><FaCog /> Aturan Batas Honor Tahunan</h3>
-                    <button onClick={() => setShowModalRule(false)} className="text-gray-400 hover:text-red-500"><FaTimes /></button>
-                </div>
-                <div className="p-6">
-                    <div className="flex gap-3 mb-6 items-end">
-                        <div className="w-1/3">
-                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Tahun</label>
-                            <input type="number" className="w-full border rounded px-3 py-2 text-sm" value={newRule.tahun} onChange={e => setNewRule({...newRule, tahun: e.target.value})} />
-                        </div>
-                        <div className="flex-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Max Honor (Rp)</label>
-                            <input type="number" className="w-full border rounded px-3 py-2 text-sm" value={newRule.batas_honor} onChange={e => setNewRule({...newRule, batas_honor: e.target.value})} />
-                        </div>
-                        <button onClick={handleSaveRule} className="bg-[#1A2A80] text-white p-2.5 rounded hover:bg-blue-900"><FaSave /></button>
-                    </div>
-                    <div className="max-h-60 overflow-y-auto border rounded-lg">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-50 text-gray-500 font-bold"><tr><td className="px-4 py-2">Tahun</td><td className="px-4 py-2">Nominal</td><td className="px-4 py-2 text-right">Aksi</td></tr></thead>
-                            <tbody>{rules.map(r => (<tr key={r.id}><td className="px-4 py-2 font-bold">{r.tahun || r.periode}</td><td className="px-4 py-2 text-green-600 font-bold">{Number(r.batas_honor).toLocaleString()}</td><td className="px-4 py-2 text-right"><button onClick={() => handleDeleteRule(r.id)} className="text-red-500"><FaTrash size={12}/></button></td></tr>))}</tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-      )}
-
     </div>
   );
 };

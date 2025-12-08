@@ -130,17 +130,17 @@ const PartTableMitra = ({ data, onEdit, onDelete, onDetail }) => {
                   filteredData.map((mitra) => (
                     <tr 
                       key={mitra.id} 
-                      onClick={() => onDetail(mitra.id)} 
-                      className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
+                      // onClick dihapus agar tidak redirect ke detail
+                      className="hover:bg-gray-50 transition-colors group" // cursor-pointer dihapus
                     >
                       {/* Kolom Nama */}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-50 text-[#1A2A80] rounded-full group-hover:bg-[#1A2A80] group-hover:text-white transition-colors">
+                          <div className="p-2 bg-blue-50 text-[#1A2A80] rounded-full transition-colors">
                               <FaUserTie />
                           </div>
                           <div>
-                            <div className="text-sm font-bold text-gray-900 group-hover:text-[#1A2A80] transition-colors">{mitra.nama_lengkap}</div>
+                            <div className="text-sm font-bold text-gray-900 transition-colors">{mitra.nama_lengkap}</div>
                             <div className="text-xs text-gray-500">{mitra.email || '-'}</div>
                           </div>
                         </div>

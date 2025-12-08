@@ -12,7 +12,8 @@ import {
   FaUserCheck,
   FaBars,
   FaFileContract,
-  FaMoneyBillWave
+  FaMoneyBillWave,
+  FaCog
 } from 'react-icons/fa';
 
 import logoSikinerja from '../assets/logo.png'; 
@@ -22,6 +23,7 @@ const menuItems = [
   { path: "/admin/dashboard", label: "Dashboard", icon: <FaHome /> },
   { path: "/admin/manage-users", label: "Manajemen User", icon: <FaUsers /> },
   { path: "/admin/manage-kegiatan", label: "Survei/Sensus", icon: <FaClipboardList /> },
+  { path: "/admin/batas-honor", label: "Atur Batas Honor", icon: <FaCog /> },
   { path: "/admin/penugasan", label: "Penugasan", icon: <FaHandshake /> },
   { path: "/admin/manajemen-mitra", label: "Manajemen Mitra", icon: <FaUserCheck /> },
   { path: "/admin/transaksi-mitra", label: "Transaksi Mitra", icon: <FaMoneyBillWave /> },

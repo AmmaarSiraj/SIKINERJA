@@ -1,8 +1,8 @@
 // src/pages/admin/Penugasan.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import Swal from 'sweetalert2'; // Import SweetAlert
+import Swal from 'sweetalert2'; 
 import { 
   FaDownload, 
   FaFileUpload, 
@@ -11,26 +11,32 @@ import {
   FaUsers, 
   FaArrowRight,
   FaClipboardList,
-  FaEdit,   // Icon Edit
-  FaTrash   // Icon Delete
+  FaEdit,   
+  FaTrash,
+  FaSearch, // Icon Search
+  FaFilter  // Icon Filter
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const getToken = () => localStorage.getItem('token');
 
 const Penugasan = () => {
-  const navigate = useNavigate(); // Hook Navigasi
+  const navigate = useNavigate();
 
-  // Data Utama
-  const [groupedPenugasan, setGroupedPenugasan] = useState({});
+  // --- STATE DATA ---
+  const [allPenugasan, setAllPenugasan] = useState([]); // Data Mentah (Flat)
   const [isLoading, setIsLoading] = useState(true);
 
-  // State untuk Dropdown & Cache Anggota
+  // --- STATE FILTER & SEARCH ---
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+
+  // --- STATE DROPDOWN & CACHE ---
   const [expandedTaskId, setExpandedTaskId] = useState(null); 
   const [membersCache, setMembersCache] = useState({});
   const [loadingMembers, setLoadingMembers] = useState(false);
 
-  // State untuk Import
+  // --- STATE IMPORT ---
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -44,7 +50,7 @@ const Penugasan = () => {
     });
   };
 
-  // 1. Fetch & Group Data Penugasan + PRELOAD Anggota
+  // 1. Fetch Data
   const fetchPenugasan = async () => {
     setIsLoading(true);
     try {
@@ -56,26 +62,17 @@ const Penugasan = () => {
         axios.get(`${API_URL}/api/kelompok-penugasan`, config)
       ]);
       
-      // A. Grouping Data Penugasan (Utama)
-      const grouped = resPenugasan.data.reduce((acc, item) => {
-        const key = item.nama_kegiatan;
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(item);
-        return acc;
-      }, {});
+      // Simpan data mentah (flat array)
+      setAllPenugasan(resPenugasan.data);
 
-      setGroupedPenugasan(grouped);
-
-      // B. Grouping Data Anggota (Preload ke Cache)
+      // Preload Anggota ke Cache
       const membersMap = {};
-      
       if (Array.isArray(resKelompok.data)) {
         resKelompok.data.forEach(member => {
           const cleanMember = {
             ...member,
             nama_lengkap: member.nama_lengkap || member.nama_mitra, 
           };
-
           const pId = member.id_penugasan;
           if (!membersMap[pId]) {
             membersMap[pId] = [];
@@ -83,7 +80,6 @@ const Penugasan = () => {
           membersMap[pId].push(cleanMember);
         });
       }
-
       setMembersCache(membersMap);
 
     } catch (err) {
@@ -97,7 +93,58 @@ const Penugasan = () => {
     fetchPenugasan();
   }, []);
 
-  // 2. Handle Klik Baris (Toggle Dropdown)
+  // 2. LOGIKA FILTER & GROUPING (useMemo)
+  
+  // A. Ambil Tahun yang tersedia dari data
+  const availableYears = useMemo(() => {
+    const years = new Set();
+    allPenugasan.forEach(item => {
+      if (item.tanggal_mulai) {
+        const y = new Date(item.tanggal_mulai).getFullYear();
+        if (!isNaN(y)) years.add(y);
+      }
+    });
+    return [...years].sort((a, b) => b - a);
+  }, [allPenugasan]);
+
+  // B. Filter Data -> Lalu Grouping
+  const groupedPenugasan = useMemo(() => {
+    // 1. Filter Data Mentah
+    const filtered = allPenugasan.filter(item => {
+      const term = searchTerm.toLowerCase();
+      
+      // Pencarian berdasarkan Nama Kegiatan, Sub Kegiatan, atau Pengawas
+      const matchSearch = 
+        (item.nama_kegiatan || '').toLowerCase().includes(term) ||
+        (item.nama_sub_kegiatan || '').toLowerCase().includes(term) ||
+        (item.nama_pengawas || '').toLowerCase().includes(term);
+
+      // Filter Tahun
+      let matchYear = true;
+      if (filterYear) {
+        if (item.tanggal_mulai) {
+          const y = new Date(item.tanggal_mulai).getFullYear();
+          matchYear = y.toString() === filterYear.toString();
+        } else {
+          matchYear = false;
+        }
+      }
+
+      return matchSearch && matchYear;
+    });
+
+    // 2. Grouping Data Hasil Filter
+    return filtered.reduce((acc, item) => {
+      const key = item.nama_kegiatan;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(item);
+      return acc;
+    }, {});
+
+  }, [allPenugasan, searchTerm, filterYear]);
+
+
+  // 3. Handle Klik Baris (Toggle Dropdown)
   const toggleRow = async (id_penugasan) => {
     if (expandedTaskId === id_penugasan) {
       setExpandedTaskId(null);
@@ -105,6 +152,7 @@ const Penugasan = () => {
     }
     setExpandedTaskId(id_penugasan);
 
+    // Load anggota on demand jika belum ada di cache (fallback)
     if (!membersCache[id_penugasan]) {
       setLoadingMembers(true);
       try {
@@ -121,10 +169,9 @@ const Penugasan = () => {
     }
   };
 
-  // --- HANDLE DELETE ---
+  // --- HANDLE ACTIONS ---
   const handleDelete = async (e, id) => {
-    e.stopPropagation(); // Mencegah accordion terbuka saat klik hapus
-    
+    e.stopPropagation();
     const result = await Swal.fire({
       title: 'Hapus Penugasan?',
       text: "Data anggota dan plotting mitra di dalamnya akan ikut terhapus permanen.",
@@ -141,28 +188,25 @@ const Penugasan = () => {
         await axios.delete(`${API_URL}/api/penugasan/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        
         Swal.fire('Terhapus!', 'Penugasan berhasil dihapus.', 'success');
-        fetchPenugasan(); // Refresh data
+        fetchPenugasan();
       } catch (err) {
         Swal.fire('Gagal!', 'Terjadi kesalahan saat menghapus.', 'error');
       }
     }
   };
 
-  // --- HANDLE EDIT ---
   const handleEdit = (e, id) => {
-    e.stopPropagation(); // Mencegah accordion terbuka
+    e.stopPropagation();
     navigate(`/admin/penugasan/edit/${id}`);
   };
 
-  // --- DOWNLOAD TEMPLATE ---
   const handleDownloadTemplate = () => {
-    const csvHeader = "nik,kegiatan_id,nama_kegiatan_ref,kode_jabatan";
+    const csvHeader = "nik,kegiatan_id,nama_kegiatan_ref,kode_jabatan,volume_tugas";
     const csvRows = [
-      "'3301020304050002,sub1,Persiapan Awal,PML-01",
-      "'6253761257157635,sub2,Pencacahan,PPL-01",
-      "'3322122703210001,sub3,Pengolahan,ENT-01"
+      "'3301020304050002,sub1,Persiapan Awal,PML-01,10",
+      "'6253761257157635,sub2,Pencacahan,PPL-01,50",
+      "'3322122703210001,sub3,Pengolahan,ENT-01,200"
     ];
     const csvContent = "data:text/csv;charset=utf-8," + csvHeader + "\n" + csvRows.join("\n");
     const encodedUri = encodeURI(csvContent);
@@ -174,42 +218,28 @@ const Penugasan = () => {
     document.body.removeChild(link);
   };
 
-  // --- IMPORT EXCEL/CSV ---
-  const handleImportClick = () => {
-    fileInputRef.current.click();
-  };
+  const handleImportClick = () => { fileInputRef.current.click(); };
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const formData = new FormData();
     formData.append('file', file);
-
     setUploading(true);
     try {
       const token = getToken();
       const response = await axios.post(`${API_URL}/api/penugasan/import`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Content-Type': 'multipart/form-data', 'Authorization': `Bearer ${token}` }
       });
-
-      const { successCount, failCount, errors } = response.data;
-      let msg = `Import Selesai!\n✅ Sukses: ${successCount}\n❌ Gagal: ${failCount}`;
-      
+      const { successCount, failCount } = response.data;
       Swal.fire({
         title: 'Import Selesai',
-        html: `<pre style="text-align:left; font-size:12px">${msg}</pre>`,
+        html: `<pre style="text-align:left; font-size:12px">✅ Sukses: ${successCount}\n❌ Gagal: ${failCount}</pre>`,
         icon: failCount > 0 ? 'warning' : 'success'
       });
-
       fetchPenugasan(); 
       setMembersCache({}); 
-
     } catch (err) {
-      console.error(err);
       Swal.fire('Error', 'Gagal mengimpor data.', 'error');
     } finally {
       setUploading(false);
@@ -228,35 +258,49 @@ const Penugasan = () => {
         <div className="text-gray-500 text-sm">
           Kelola tim dan alokasi mitra untuk setiap sub-kegiatan.
         </div>
-        
         <div className="flex gap-2">
-          <button 
-            onClick={handleDownloadTemplate} 
-            className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 transition shadow-sm"
-          >
+          <button onClick={handleDownloadTemplate} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 transition shadow-sm">
             <FaDownload /> Template CSV
           </button>
-          <button 
-            onClick={handleImportClick} 
-            disabled={uploading} 
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm disabled:opacity-50"
-          >
+          <button onClick={handleImportClick} disabled={uploading} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm disabled:opacity-50">
             <FaFileUpload /> {uploading ? '...' : 'Import Excel'}
           </button>
-          <Link 
-            to="/admin/penugasan/tambah" 
-            className="flex items-center gap-2 bg-[#1A2A80] hover:bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm"
-          >
+          <Link to="/admin/penugasan/tambah" className="flex items-center gap-2 bg-[#1A2A80] hover:bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm">
             <FaPlus /> Buat Manual
           </Link>
         </div>
       </div>
 
-      {/* --- LIST PENUGASAN (GROUPED) --- */}
+      {/* --- SEARCH & FILTER SECTION (BARU) --- */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
+         <div className="relative w-full md:w-1/2">
+            <FaSearch className="absolute left-3 top-3 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Cari kegiatan, sub kegiatan, atau pengawas..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm transition bg-gray-50 focus:bg-white"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+         </div>
+         <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="flex items-center gap-2 text-gray-500 text-sm font-bold"><FaFilter /> Tahun:</div>
+            <select
+               className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm bg-white cursor-pointer"
+               value={filterYear}
+               onChange={(e) => setFilterYear(e.target.value)}
+            >
+               <option value="">Semua</option>
+               {availableYears.map(year => <option key={year} value={year}>{year}</option>)}
+            </select>
+         </div>
+      </div>
+
+      {/* --- LIST PENUGASAN (GROUPED & FILTERED) --- */}
       <div className="space-y-6">
         {Object.keys(groupedPenugasan).length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-400 italic">
-            Belum ada data penugasan. Silakan import atau buat baru.
+            {searchTerm || filterYear ? 'Tidak ditemukan data yang sesuai filter.' : 'Belum ada data penugasan. Silakan import atau buat baru.'}
           </div>
         ) : (
           Object.entries(groupedPenugasan).map(([kegiatanName, subItems]) => (
@@ -315,18 +359,10 @@ const Penugasan = () => {
 
                             {/* Tombol Aksi (Edit & Hapus) */}
                             <div className="flex items-center gap-1 border-l pl-4 border-gray-200">
-                                <button 
-                                    onClick={(e) => handleEdit(e, task.id_penugasan)}
-                                    className="p-2 text-indigo-500 hover:bg-indigo-100 rounded-full transition"
-                                    title="Edit Penugasan"
-                                >
+                                <button onClick={(e) => handleEdit(e, task.id_penugasan)} className="p-2 text-indigo-500 hover:bg-indigo-100 rounded-full transition" title="Edit Penugasan">
                                     <FaEdit size={14} />
                                 </button>
-                                <button 
-                                    onClick={(e) => handleDelete(e, task.id_penugasan)}
-                                    className="p-2 text-red-500 hover:bg-red-100 rounded-full transition"
-                                    title="Hapus Penugasan"
-                                >
+                                <button onClick={(e) => handleDelete(e, task.id_penugasan)} className="p-2 text-red-500 hover:bg-red-100 rounded-full transition" title="Hapus Penugasan">
                                     <FaTrash size={14} />
                                 </button>
                             </div>
@@ -360,10 +396,17 @@ const Penugasan = () => {
                                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-xs font-bold">
                                         {m.nama_lengkap ? m.nama_lengkap.charAt(0) : '?'}
                                      </div>
-                                     <div className="overflow-hidden">
-                                        <p className="text-gray-700 font-bold text-xs truncate">
-                                            {m.nama_lengkap || m.nama_mitra || 'Nama Tidak Tersedia'}
-                                        </p>
+                                     <div className="overflow-hidden w-full">
+                                        <div className="flex justify-between items-center w-full">
+                                            <p className="text-gray-700 font-bold text-xs truncate">
+                                                {m.nama_lengkap || m.nama_mitra || 'Nama Tidak Tersedia'}
+                                            </p>
+                                            {m.volume_tugas > 0 && (
+                                                <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded border border-blue-100">
+                                                    Vol: {m.volume_tugas}
+                                                </span>
+                                            )}
+                                        </div>
                                         <p className="text-xs text-gray-400 truncate">
                                             {m.nama_jabatan || '-'}
                                         </p>

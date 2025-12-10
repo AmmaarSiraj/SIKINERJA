@@ -1,12 +1,11 @@
-// src/pages/admin/AddMitra.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import { 
   FaArrowLeft, FaUserTie, FaIdCard, FaPhone, FaEnvelope, 
-  FaMapMarkerAlt, FaSave, FaCheck, FaVenusMars, FaGraduationCap, FaBriefcase, FaIdBadge,
-  FaCalendarAlt
+  FaMapMarkerAlt, FaCheck, FaVenusMars, FaGraduationCap, FaBriefcase, FaIdBadge,
+  FaCalendarAlt, FaChevronDown
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -14,6 +13,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const AddMitra = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [showYearDropdown, setShowYearDropdown] = useState(false);
+  const selectedYearRef = useRef(null);
+
+  // 1. LOGIKA GENERATE TAHUN (50 thn lalu - 50 thn depan)
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 101 }, (_, i) => currentYear - 50 + i); 
 
   const [formData, setFormData] = useState({
     nama_lengkap: '',
@@ -26,12 +31,23 @@ const AddMitra = () => {
     pendidikan: '',
     pekerjaan: '',
     deskripsi_pekerjaan_lain: '',
-    // Default tahun pendaftaran ke tahun saat ini
-    tahun_daftar: new Date().getFullYear().toString()
+    tahun_daftar: currentYear
   });
+
+  // --- EFEK AUTO SCROLL KE TENGAH ---
+  useEffect(() => {
+    if (showYearDropdown && selectedYearRef.current) {
+      selectedYearRef.current.scrollIntoView({ block: 'center' });
+    }
+  }, [showYearDropdown]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSelectYear = (year) => {
+    setFormData({ ...formData, tahun_daftar: year });
+    setShowYearDropdown(false);
   };
 
   const handleSubmit = async (e) => {
@@ -43,7 +59,6 @@ const AddMitra = () => {
         return Swal.fire('Gagal', 'Nama Lengkap, NIK, No HP, dan Tahun wajib diisi.', 'warning');
     }
 
-    // Validasi format tahun (4 digit)
     if (!/^\d{4}$/.test(formData.tahun_daftar)) {
         setLoading(false);
         return Swal.fire('Gagal', 'Format tahun harus 4 digit angka (misal: 2025).', 'warning');
@@ -51,13 +66,10 @@ const AddMitra = () => {
 
     try {
       const token = localStorage.getItem('token');
-      
-      // Kirim data ke backend
       const response = await axios.post(`${API_URL}/api/mitra`, formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Tampilkan pesan sukses dari backend (bisa "Mitra baru" atau "Mitra lama diperbarui")
       Swal.fire({
         title: 'Berhasil!',
         text: response.data.message || 'Mitra berhasil didaftarkan.',
@@ -70,7 +82,6 @@ const AddMitra = () => {
 
     } catch (err) {
       console.error(err);
-      // Tangkap pesan error spesifik dari backend (misal: "Sudah terdaftar aktif tahun ini")
       const errorMsg = err.response?.data?.error || 'Terjadi kesalahan saat menyimpan.';
       
       if (err.response?.status === 409) {
@@ -108,26 +119,52 @@ const AddMitra = () => {
 
         <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
             
+            {/* --- KOLOM KIRI --- */}
             <div className="space-y-5">
                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b pb-2 mb-4">Data Pribadi</h4>
                 
-                {/* Input Tahun Aktif (Paling Atas agar terlihat jelas) */}
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                    <label className="block text-sm font-bold text-blue-800 mb-1">Tahun Pendaftaran <span className="text-red-500">*</span></label>
+                {/* --- COMBOBOX TAHUN AKTIF --- */}
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 relative">
+                    <label className="block text-sm font-bold text-blue-800 mb-1">Tahun Aktif <span className="text-red-500">*</span></label>
                     <div className="relative">
-                        <span className="absolute left-3 top-3 text-blue-400"><FaCalendarAlt /></span>
+                        <span className="absolute left-3 top-3 text-blue-400 z-10 pointer-events-none"><FaCalendarAlt /></span>
                         <input 
-                            type="number" name="tahun_daftar"
-                            min="2000" max="2099"
-                            className="w-full pl-10 pr-4 py-2.5 border border-blue-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none transition font-bold text-blue-900"
-                            placeholder="2025"
-                            value={formData.tahun_daftar} onChange={handleChange} required
+                            type="number" 
+                            name="tahun_daftar"
+                            className="w-full pl-10 pr-10 py-2.5 border border-blue-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none transition font-bold text-blue-900 bg-white"
+                            placeholder="YYYY"
+                            value={formData.tahun_daftar} 
+                            onChange={handleChange}
+                            onFocus={() => setShowYearDropdown(true)}
+                            onBlur={() => setTimeout(() => setShowYearDropdown(false), 200)}
+                            required
                         />
+                        <FaChevronDown className="absolute right-3 top-4 text-blue-400 pointer-events-none text-xs" />
+
+                        {/* LIST DROPDOWN */}
+                        {showYearDropdown && (
+                            <ul className="absolute z-50 w-full bg-white border border-gray-300 mt-1 rounded-lg shadow-xl max-h-40 overflow-y-auto custom-scrollbar">
+                                {years.map(year => {
+                                    const isSelected = year === parseInt(formData.tahun_daftar);
+                                    return (
+                                        <li 
+                                            key={year}
+                                            ref={isSelected ? selectedYearRef : null}
+                                            onMouseDown={() => handleSelectYear(year)}
+                                            className={`px-4 py-2 cursor-pointer text-sm font-medium transition ${isSelected ? 'bg-blue-100 text-[#1A2A80]' : 'text-gray-600 hover:bg-gray-50'}`}
+                                        >
+                                            {year}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
                     </div>
-                    <p className="text-xs text-blue-600 mt-1">
+                    <p className="text-xs text-blue-600 mt-2 font-medium">
                         *Jika NIK sudah ada, data profil akan diperbarui & diaktifkan untuk tahun ini.
                     </p>
                 </div>
+                {/* ----------------------------------- */}
 
                 <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Nama Lengkap <span className="text-red-500">*</span></label>
@@ -199,6 +236,7 @@ const AddMitra = () => {
                 </div>
             </div>
 
+            {/* --- KOLOM KANAN --- */}
             <div className="space-y-5">
                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b pb-2 mb-4">Kontak & Latar Belakang</h4>
 

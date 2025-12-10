@@ -16,12 +16,12 @@ const penugasanRoutes = require('./routes/penugasanRoutes');
 const kelompokPenugasanRoutes = require('./routes/kelompokPenugasanRoutes');
 const honorariumRoutes = require('./routes/honorariumRoutes');
 const pengajuanMitraRoutes = require('./routes/pengajuanMitraRoutes');
-const laporanFormRoutes = require('./routes/laporanFormRoutes');
 const jabatanMitraRoutes = require('./routes/jabatanMitraRoutes');
 const satuanRoutes = require('./routes/satuanRoutes');
 const aturanPeriodeRoutes = require('./routes/aturanPeriodeRoutes');
 const spkRoutes = require('./routes/spkRoutes');
 const transaksiRoutes = require('./routes/transaksiRoutes');
+const spkTemplateRoutes = require('./routes/spkTemplateRoutes');
 
 app.use('/api/users', userRoutes);
 app.use('/api/kegiatan', kegiatanRoutes);
@@ -31,11 +31,11 @@ app.use('/api/penugasan', penugasanRoutes);
 app.use('/api/kelompok-penugasan', kelompokPenugasanRoutes);
 app.use('/api/honorarium', honorariumRoutes);
 app.use('/api/manajemen-mitra', pengajuanMitraRoutes);
-app.use('/api/laporan-form', laporanFormRoutes);
 app.use('/api/jabatan-mitra', jabatanMitraRoutes);
 app.use('/api/satuan', satuanRoutes);
 app.use('/api/aturan-periode', aturanPeriodeRoutes);
 app.use('/api/transaksi', transaksiRoutes);
+app.use('/api/spk-templates', spkTemplateRoutes);
 app.get('/', (req, res) => {
   res.json({ message: 'Backend is running 🚀' });
 });

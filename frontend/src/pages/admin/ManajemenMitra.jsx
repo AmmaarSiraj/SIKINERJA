@@ -6,7 +6,7 @@ import Swal from 'sweetalert2';
 import { 
   FaDownload, FaFileUpload, 
   FaTimes, FaPlus,
-  FaFileExcel, FaCheckCircle, FaCloudUploadAlt
+  FaFileExcel, FaCheckCircle, FaCloudUploadAlt, FaChevronDown
 } from 'react-icons/fa';
 import PartTableMitra from '../../components/admin/PartTabelMitra';
 
@@ -20,7 +20,17 @@ const ManajemenMitra = () => {
   
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState(null);
-  const [importYear, setImportYear] = useState('');
+  
+  // --- STATE TAHUN DINAMIS ---
+  const currentYear = new Date().getFullYear();
+  const [importYear, setImportYear] = useState(currentYear);
+  const [showYearDropdown, setShowYearDropdown] = useState(false);
+  
+  // Ref untuk elemen tahun terpilih di dalam list
+  const selectedYearRef = useRef(null);
+
+  const yearsRange = Array.from({ length: 101 }, (_, i) => currentYear - 50 + i);
+
   const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef(null); 
@@ -44,10 +54,22 @@ const ManajemenMitra = () => {
 
   useEffect(() => { fetchMitra(); }, []);
 
+  // --- EFEK AUTO SCROLL KE TENGAH (MODAL) ---
+  useEffect(() => {
+    if (showYearDropdown && selectedYearRef.current) {
+      selectedYearRef.current.scrollIntoView({ block: 'center' });
+    }
+  }, [showYearDropdown]);
+
   const handleOpenImport = () => {
     setImportFile(null);
-    setImportYear(new Date().getFullYear());
+    setImportYear(currentYear);
     setShowImportModal(true);
+  };
+
+  const handleSelectYear = (year) => {
+    setImportYear(year);
+    setShowYearDropdown(false);
   };
 
   const handleDragOver = (e) => {
@@ -89,7 +111,7 @@ const ManajemenMitra = () => {
 
     setUploading(true);
     const formData = new FormData();
-    const yearToSend = importYear || new Date().getFullYear();
+    const yearToSend = importYear || currentYear;
     
     formData.append('tahun_daftar', yearToSend);
     formData.append('file', importFile);
@@ -180,8 +202,6 @@ const ManajemenMitra = () => {
     XLSX.writeFile(wb, "Data_Mitra_Export.xlsx");
   };
 
-  const handleImportClick = () => fileInputRef.current.click();
-  
   const handleDelete = async (id, year) => {
     const result = await Swal.fire({ 
         title: 'Hapus Data?', 
@@ -250,11 +270,45 @@ const ManajemenMitra = () => {
                     <button onClick={() => setShowImportModal(false)} className="text-gray-400 hover:text-red-500 transition"><FaTimes size={20} /></button>
                 </div>
                 <div className="p-6 space-y-6">
-                    <div>
+                    
+                    {/* --- COMBOBOX TAHUN AKTIF --- */}
+                    <div className="relative">
                         <label className="block text-sm font-bold text-gray-700 mb-1">Tahun Aktif</label>
-                        <input type="number" min="2000" max="2099" placeholder={new Date().getFullYear()} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-700 font-bold" value={importYear} onChange={(e) => setImportYear(e.target.value)} />
-                        <p className="text-xs text-gray-500 mt-1">Kosongkan untuk menggunakan tahun saat ini ({new Date().getFullYear()}).</p>
+                        <div className="relative">
+                            <input 
+                                type="number" 
+                                value={importYear}
+                                onChange={(e) => setImportYear(e.target.value)}
+                                onFocus={() => setShowYearDropdown(true)}
+                                onBlur={() => setTimeout(() => setShowYearDropdown(false), 200)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-700 font-bold bg-white"
+                                placeholder={currentYear}
+                            />
+                            <FaChevronDown className="absolute right-3 top-3 text-gray-400 pointer-events-none text-xs" />
+                            
+                            {/* List Dropdown */}
+                            {showYearDropdown && (
+                                <ul className="absolute z-50 w-full bg-white border border-gray-300 mt-1 rounded shadow-lg max-h-48 overflow-y-auto">
+                                    {yearsRange.map(year => {
+                                        const isSelected = year === parseInt(importYear);
+                                        return (
+                                            <li 
+                                                key={year} 
+                                                ref={isSelected ? selectedYearRef : null}
+                                                onMouseDown={() => handleSelectYear(year)}
+                                                className={`px-4 py-2 cursor-pointer hover:bg-green-50 text-sm ${isSelected ? 'bg-green-100 font-bold text-green-800' : 'text-gray-700'}`}
+                                            >
+                                                {year}
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Data yang diimport akan ditandai aktif pada tahun ini.</p>
                     </div>
+                    {/* --------------------------- */}
+
                     <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={() => fileInputRef.current.click()} className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-3 ${isDragging ? 'border-green-500 bg-green-50 scale-[1.02]' : 'border-gray-300 hover:border-green-400 hover:bg-gray-50'} ${importFile ? 'bg-green-50/50 border-green-500' : 'bg-white'}`}>
                         <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".xlsx, .xls" className="hidden" />
                         {importFile ? (

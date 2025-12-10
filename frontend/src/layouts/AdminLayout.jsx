@@ -20,16 +20,24 @@ import logoSikinerja from '../assets/logo.png';
 import PartDetailProfileAdmin from '../components/admin/PartDetailProfileAdmin';
 
 const menuItems = [
+ // 1. UTAMA
   { path: "/admin/dashboard", label: "Dashboard", icon: <FaHome /> },
-  { path: "/admin/manage-users", label: "Manajemen User", icon: <FaUsers /> },
+  
+  // 2. OPERASIONAL (Kegiatan & Plotting)
   { path: "/admin/manage-kegiatan", label: "Survei/Sensus", icon: <FaClipboardList /> },
-  { path: "/admin/batas-honor", label: "Atur Batas Honor", icon: <FaCog /> },
   { path: "/admin/penugasan", label: "Penugasan", icon: <FaHandshake /> },
+  
+  // 3. SDM (Mitra)
   { path: "/admin/manajemen-mitra", label: "Manajemen Mitra", icon: <FaUserCheck /> },
+  
+  // 4. KEUANGAN & DOKUMEN
   { path: "/admin/transaksi-mitra", label: "Transaksi Mitra", icon: <FaMoneyBillWave /> },
-  { path: "/admin/laporan", label: "Template Laporan", icon: <FaFileAlt /> },
-  { path: "/admin/manajemen-jabatan", label: "Manajemen Jabatan", icon: <FaFileAlt /> },
   { path: "/admin/manajemen-spk", label: "Manajemen SPK", icon: <FaFileContract /> },
+  
+  // 5. MASTER DATA & PENGATURAN
+  { path: "/admin/manajemen-jabatan", label: "Master Jabatan", icon: <FaFileAlt /> },
+  { path: "/admin/batas-honor", label: "Atur Batas Honor", icon: <FaCog /> },
+  { path: "/admin/manage-users", label: "Manajemen User", icon: <FaUsers /> },
 ];
 
 const AdminHeader = ({ title, toggleSidebar, isProfileExpanded, setIsProfileExpanded }) => {

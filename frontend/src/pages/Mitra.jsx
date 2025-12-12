@@ -1,27 +1,32 @@
-import React, { useEffect, useState } from 'react';
+// src/pages/Mitra.jsx
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { 
-  FaUserTie,
-  FaCalendarAlt, 
-  FaList, 
-  FaBriefcase, 
-  FaSearch,
+  FaSearch, 
+  FaUserTie, 
+  FaMapMarkerAlt, 
+  FaPhone, 
   FaIdCard,
-  FaPhone
+  FaCalendarAlt,
+  FaFilter,
+  FaUser // Import ikon user baru
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const Mitra = () => {
   const [mitraList, setMitraList] = useState([]);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'period'
-  const [periodData, setPeriodData] = useState({});
   const [loading, setLoading] = useState(true);
-  const [loadingPeriod, setLoadingPeriod] = useState(false);
-  const [error, setError] = useState(null);
+  
+  // State Filter
+  const currentYear = new Date().getFullYear();
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedYear, setSelectedYear] = useState(currentYear);
 
-  // --- 1. FETCH DATA MITRA (LIST MODE) ---
+  // Opsi Tahun (Mundur 2 tahun, Maju 1 tahun)
+  const yearOptions = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
+
+  // Fetch Data Mitra
   useEffect(() => {
     const fetchMitra = async () => {
       setLoading(true);
@@ -29,19 +34,10 @@ const Mitra = () => {
         const token = localStorage.getItem('token');
         const config = { headers: { Authorization: `Bearer ${token}` } };
         
-        // Mengambil daftar mitra
-        // Catatan: Pastikan endpoint ini diizinkan untuk role 'user' di backend
         const response = await axios.get(`${API_URL}/api/mitra`, config);
         setMitraList(response.data);
       } catch (err) {
-        console.error(err);
-        // Fallback jika user tidak punya akses ke endpoint utama, 
-        // kita set kosong atau tampilkan pesan
-        if (err.response && err.response.status === 403) {
-            setError("Anda tidak memiliki akses untuk melihat seluruh daftar mitra.");
-        } else {
-            setError("Gagal memuat data mitra.");
-        }
+        console.error("Gagal memuat data mitra:", err);
       } finally {
         setLoading(false);
       }
@@ -50,234 +46,180 @@ const Mitra = () => {
     fetchMitra();
   }, []);
 
-  // --- 2. FETCH DATA PERIODE (PERIOD MODE) ---
-  const fetchPeriodData = async () => {
-    if (Object.keys(periodData).length > 0) return; // Cache sederhana
-    setLoadingPeriod(true);
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
+  // Filter Logika Gabungan (Pencarian + Tahun Aktif)
+  const filteredMitra = useMemo(() => {
+    if (!selectedYear) return [];
 
-      const [resSub, resPenugasan, resKelompok] = await Promise.all([
-        axios.get(`${API_URL}/api/subkegiatan`, { headers }),
-        axios.get(`${API_URL}/api/penugasan`, { headers }),
-        axios.get(`${API_URL}/api/kelompok-penugasan`, { headers })
-      ]);
+    return mitraList.filter(item => {
+      // 1. Cek Tahun Aktif
+      const historyYears = item.riwayat_tahun ? item.riwayat_tahun.split(',').map(y => y.trim()) : [];
+      const isActiveInYear = historyYears.includes(String(selectedYear));
 
-      // Mapping Data
-      const subMap = {};
-      const subNameMap = {};
-      resSub.data.forEach(s => {
-        subMap[s.id] = s.periode;
-        subNameMap[s.id] = s.nama_sub_kegiatan;
-      });
+      if (!isActiveInYear) return false;
 
-      const taskMap = {};
-      resPenugasan.data.forEach(t => {
-        if (subMap[t.id_subkegiatan]) {
-            taskMap[t.id_penugasan] = {
-                periode: subMap[t.id_subkegiatan],
-                nama_sub: subNameMap[t.id_subkegiatan]
-            };
-        }
-      });
+      // 2. Cek Pencarian Teks
+      const term = searchTerm.toLowerCase();
+      const isSearchMatch = 
+        (item.nama_lengkap && item.nama_lengkap.toLowerCase().includes(term)) ||
+        (item.nik && item.nik.includes(term)) ||
+        (item.alamat && item.alamat.toLowerCase().includes(term));
 
-      const grouped = {};
-      resKelompok.data.forEach(k => {
-        const taskInfo = taskMap[k.id_penugasan];
-        if (taskInfo && taskInfo.periode) {
-            const periodeKey = taskInfo.periode;
-            if (!grouped[periodeKey]) grouped[periodeKey] = [];
-            grouped[periodeKey].push({
-                id_mitra: k.id_mitra,
-                nama_mitra: k.nama_mitra || k.nama_lengkap, // Fallback nama
-                tugas: taskInfo.nama_sub,
-                jabatan: k.kode_jabatan,
-                nik: k.nik // Jika tersedia di endpoint ini
-            });
-        }
-      });
-      setPeriodData(grouped);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingPeriod(false);
-    }
+      return isSearchMatch;
+    });
+  }, [mitraList, searchTerm, selectedYear]);
+
+  // Helper Sensor NIK
+  const maskNIK = (nik) => {
+    if (!nik || nik.length < 8) return nik;
+    return nik.substring(0, 4) + '********' + nik.substring(nik.length - 4);
   };
 
-  const formatPeriodeLabel = (periodeStr) => {
-    if (!periodeStr) return '-';
-    const parts = periodeStr.split('-');
-    if (parts.length === 2) {
-      const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1);
-      return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-    }
-    return periodeStr;
+  // Helper Format Gender
+  const formatGender = (gender) => {
+    if (!gender) return '-';
+    const g = String(gender).toLowerCase().trim();
+    if (g === 'lk' || g === 'l') return 'Laki-laki';
+    if (g === 'pr' || g === 'p') return 'Perempuan';
+    return gender;
   };
-
-  // Filter List berdasarkan Search
-  const filteredMitra = mitraList.filter(m => 
-    m.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.nik.includes(searchTerm)
-  );
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl pb-20">
+    <div className="w-full pt-8 px-8 pb-20 animate-fade-in-up">
       
-      {/* HEADER */}
+      {/* HEADER PAGE */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <FaUserTie className="text-[#1A2A80]" /> Direktori Mitra
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Daftar rekan kerja dan mitra statistik yang terdaftar.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2 justify-end w-full md:w-auto">
-          {/* View Toggle */}
-          <button 
-            onClick={() => {
-                if (viewMode === 'list') { setViewMode('period'); fetchPeriodData(); } 
-                else { setViewMode('list'); }
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm border w-full md:w-auto justify-center ${viewMode === 'period' ? 'bg-blue-50 text-[#1A2A80] border-[#1A2A80]' : 'bg-white text-gray-600 border-gray-200'}`}
-          >
-            {viewMode === 'list' ? <><FaCalendarAlt /> Mode Periode</> : <><FaList /> Mode Daftar</>}
-          </button>
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">Daftar mitra statistik yang aktif pada tahun terpilih.</p>
         </div>
       </div>
 
-      {/* ERROR MESSAGE */}
-      {error && (
-        <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6 border border-red-100 text-center">
-            {error}
+      {/* FILTER BAR */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
+         
+         {/* Input Pencarian */}
+         <div className="relative w-full md:w-2/3">
+            <FaSearch className="absolute left-3 top-3 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Cari nama mitra, NIK, atau alamat..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm transition bg-gray-50 focus:bg-white"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+         </div>
+
+         {/* Dropdown Tahun */}
+         <div className="flex items-center gap-3 w-full md:w-auto min-w-[200px]">
+            <div className="flex items-center gap-2 text-gray-500 text-sm font-bold whitespace-nowrap">
+                <FaFilter className="text-[#1A2A80]" /> Tahun Aktif:
+            </div>
+            <div className="relative w-full">
+                <FaCalendarAlt className="absolute left-3 top-3 text-gray-400 z-10" />
+                <select
+                   className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm bg-gray-50 focus:bg-white cursor-pointer font-bold text-gray-700"
+                   value={selectedYear}
+                   onChange={(e) => setSelectedYear(e.target.value)}
+                >
+                   {yearOptions.map(year => (
+                       <option key={year} value={year}>{year}</option>
+                   ))}
+                </select>
+            </div>
+         </div>
+
+      </div>
+
+      {/* TABEL DATA */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Header Tabel */}
+        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+            <h3 className="font-bold text-gray-700 flex items-center gap-2 text-sm">
+                <FaUserTie className="text-[#1A2A80]" /> Mitra Aktif Tahun {selectedYear} ({filteredMitra.length})
+            </h3>
         </div>
-      )}
 
-      {/* CONTENT AREA */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-h-[400px]">
-        
-        {viewMode === 'list' ? (
-            <>
-              {/* SEARCH BAR (Hanya di List Mode) */}
-              <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-                <div className="relative max-w-md">
-                    <span className="absolute left-3 top-3 text-gray-400"><FaSearch /></span>
-                    <input 
-                        type="text" 
-                        placeholder="Cari nama atau NIK..." 
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-              </div>
-
-              {loading ? (
-                  <div className="text-center py-20 text-gray-500 animate-pulse">Memuat data mitra...</div>
-              ) : (
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+        {/* Content Tabel */}
+        <div className="overflow-x-auto">
+            <table className="min-w-full text-sm text-left">
+                <thead className="bg-white text-gray-500 uppercase text-xs font-bold border-b border-gray-200">
+                    <tr>
+                        <th className="px-6 py-4 w-1/3">Nama Lengkap</th>
+                        <th className="px-6 py-4 w-1/3">Identitas (NIK/ID)</th>
+                        <th className="px-6 py-4 w-1/3">Kontak & Alamat</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                    {loading ? (
                         <tr>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-10">No</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Identitas</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Kontak</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Bank</th>
+                            <td colSpan="3" className="text-center py-12 text-gray-400 italic">
+                                <div className="flex justify-center items-center gap-2">
+                                    <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></span>
+                                    Memuat data direktori...
+                                </div>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-100">
-                        {filteredMitra.length === 0 ? (
-                            <tr><td colSpan="4" className="text-center py-10 text-gray-400 italic">Data tidak ditemukan.</td></tr>
-                        ) : (
-                            filteredMitra.map((mitra, index) => (
-                            <tr key={mitra.id} className="hover:bg-blue-50/30 transition-colors">
-                                <td className="px-6 py-4 text-xs text-gray-500">{index + 1}</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
+                    ) : filteredMitra.length === 0 ? (
+                        <tr>
+                            <td colSpan="3" className="text-center py-12 text-gray-400 italic bg-gray-50/30">
+                                {searchTerm 
+                                    ? `Tidak ditemukan mitra dengan kata kunci "${searchTerm}" di tahun ${selectedYear}.` 
+                                    : `Tidak ada mitra yang aktif pada tahun ${selectedYear}.`
+                                }
+                            </td>
+                        </tr>
+                    ) : (
+                        filteredMitra.map((item, idx) => (
+                            <tr key={item.id || idx} className="hover:bg-blue-50/30 transition-colors group">
+                                <td className="px-6 py-4 align-top">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-blue-100 text-[#1A2A80] flex items-center justify-center text-xs font-bold">
-                                            {mitra.nama_lengkap.charAt(0)}
+                                        {/* UBAH INISIAL JADI IKON USER DI SINI */}
+                                        <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-[#1A2A80] border border-indigo-100 group-hover:bg-[#1A2A80] group-hover:text-white transition-colors">
+                                            <FaUser size={18} />
                                         </div>
                                         <div>
-                                            <div className="text-sm font-bold text-gray-900">{mitra.nama_lengkap}</div>
-                                            <div className="text-xs text-gray-500 font-mono flex items-center gap-1">
-                                                <FaIdCard className="text-gray-300"/> {mitra.nik}
-                                            </div>
+                                            <p className="font-bold text-gray-800">{item.nama_lengkap}</p>
+                                            <p className="text-xs text-gray-500">{formatGender(item.jenis_kelamin)}</p>
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-600">
-                                    <div className="flex items-center gap-2">
-                                        <FaPhone className="text-gray-300 text-xs" /> {mitra.no_hp}
+                                <td className="px-6 py-4 align-top">
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex items-center gap-2 text-gray-600">
+                                            <FaIdCard className="text-gray-400" />
+                                            <span className="font-mono text-xs font-medium bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
+                                                {maskNIK(item.nik)}
+                                            </span>
+                                        </div>
+                                        {item.sobat_id && (
+                                            <div className="text-xs text-[#1A2A80] font-bold pl-6">
+                                                ID SOBAT: {item.sobat_id}
+                                            </div>
+                                        )}
                                     </div>
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-900">
-                                    <span className="font-bold">{mitra.nama_bank}</span> 
-                                    <span className="text-gray-400 mx-1">-</span> 
-                                    <span className="font-mono text-gray-500">{mitra.no_rekening}</span>
+                                <td className="px-6 py-4 align-top">
+                                    <div className="space-y-1.5">
+                                        <p className="flex items-center gap-2 text-gray-600">
+                                            <FaPhone className="text-green-600 text-xs" />
+                                            <span className="font-medium">{item.no_hp || '-'}</span>
+                                        </p>
+                                        <p className="flex items-start gap-2 text-gray-500 text-xs mt-1">
+                                            <FaMapMarkerAlt className="text-red-500 mt-0.5 flex-shrink-0" />
+                                            <span className="line-clamp-2 max-w-xs leading-snug">{item.alamat || '-'}</span>
+                                        </p>
+                                    </div>
                                 </td>
                             </tr>
-                            ))
-                        )}
-                    </tbody>
-                    </table>
-                </div>
-              )}
-            </>
-        ) : (
-            // VIEW: MODE PERIODE
-            <div className="space-y-0 divide-y divide-gray-200">
-                {loadingPeriod ? <div className="p-10 text-center text-gray-500 animate-pulse">Memuat data periode...</div> : 
-                 Object.keys(periodData).length === 0 ? (
-                    <div className="p-10 text-center text-gray-400 italic">Belum ada data penugasan per periode.</div>
-                 ) : (
-                 Object.keys(periodData).sort().reverse().map(periodeKey => {
-                    const mitraInPeriod = periodData[periodeKey];
-                    return (
-                        <div key={periodeKey}>
-                            <div className="bg-gray-50 px-6 py-3 flex items-center gap-3 border-l-4 border-[#1A2A80] sticky top-0">
-                                <FaCalendarAlt className="text-[#1A2A80]" />
-                                <h3 className="font-bold text-gray-800 text-lg">{formatPeriodeLabel(periodeKey)}</h3>
-                                <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded border shadow-sm">
-                                    {mitraInPeriod.length} Mitra Bertugas
-                                </span>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full">
-                                    <tbody className="divide-y divide-gray-100">
-                                        {mitraInPeriod.map((item, idx) => (
-                                            <tr key={idx} className="hover:bg-blue-50/30">
-                                                <td className="px-6 py-3 pl-12 whitespace-nowrap">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-xs font-bold">
-                                                            {item.nama_mitra ? item.nama_mitra.charAt(0) : '?'}
-                                                        </div>
-                                                        <div className="text-sm font-bold text-gray-800">
-                                                            {item.nama_mitra || 'Nama Tidak Tersedia'}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-3 text-xs text-gray-500">
-                                                    <div className="flex items-center gap-1 bg-blue-50 px-2 py-1 rounded w-fit text-blue-700">
-                                                        <FaBriefcase /> {item.tugas}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-3 text-xs font-bold text-gray-600 text-right">
-                                                    {item.jabatan || '-'}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    );
-                }))}
-            </div>
-        )}
+                        ))
+                    )}
+                </tbody>
+            </table>
+        </div>
       </div>
+
     </div>
   );
 };

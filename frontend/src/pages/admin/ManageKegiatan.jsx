@@ -1,3 +1,4 @@
+// src/pages/admin/ManageKegiatan.jsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -144,8 +145,8 @@ const ManageKegiatan = () => {
   const handleDelete = async (e, id) => {
     e.stopPropagation(); 
     const result = await Swal.fire({
-      title: 'Hapus Kegiatan?',
-      text: "Seluruh data terkait (Sub Kegiatan, Penugasan) akan terhapus.",
+      title: 'Hapus Survei/Sensus?',
+      text: "Seluruh data terkait (Kegiatan, Penugasan) akan terhapus.",
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
@@ -186,7 +187,7 @@ const ManageKegiatan = () => {
       });
       setSubKegiatanMap(prev => ({ ...prev, [parentId]: res.data }));
     } catch (err) {
-      console.error("Gagal load sub kegiatan:", err);
+      console.error("Gagal load kegiatan:", err);
     } finally {
       setLoadingSub(false);
     }
@@ -198,7 +199,7 @@ const ManageKegiatan = () => {
   const handleDeleteSub = async (e, subId, parentId) => {
     e.stopPropagation();
     const result = await Swal.fire({
-      title: 'Hapus Sub Kegiatan?',
+      title: 'Hapus Kegiatan?',
       text: "Data penugasan & honorarium di dalamnya juga akan terhapus.",
       icon: 'warning',
       showCancelButton: true,
@@ -212,7 +213,7 @@ const ManageKegiatan = () => {
             await axios.delete(`${API_URL}/api/subkegiatan/${subId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            Swal.fire('Terhapus', 'Sub kegiatan berhasil dihapus.', 'success');
+            Swal.fire('Terhapus', 'Kegiatan berhasil dihapus.', 'success');
             // Refresh list sub kegiatan
             fetchSubKegiatan(parentId);
         } catch (err) {
@@ -254,7 +255,7 @@ const ManageKegiatan = () => {
             headers: { Authorization: `Bearer ${token}` }
         });
 
-        Swal.fire('Berhasil', 'Data sub kegiatan diperbarui.', 'success');
+        Swal.fire('Berhasil', 'Data Kegiatan diperbarui.', 'success');
         setIsModalOpen(false);
         // Refresh data sub di tabel parent
         fetchSubKegiatan(editingSub.id_kegiatan);
@@ -338,7 +339,7 @@ const ManageKegiatan = () => {
 
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <div className="text-gray-500 text-sm">Kelola daftar kegiatan survei/sensus.</div>
+        <div className="text-gray-500 text-sm">Kelola daftar Survei/Sensus.</div>
         <div className="flex gap-2">
           <button onClick={handleDownloadTemplate} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 transition shadow-sm"><FaDownload /> Template</button>
           <button onClick={handleImportClick} disabled={uploading} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm disabled:opacity-50"><FaFileUpload /> {uploading ? '...' : 'Import'}</button>
@@ -352,7 +353,7 @@ const ManageKegiatan = () => {
             <FaSearch className="absolute left-3 top-3 text-gray-400" />
             <input
               type="text"
-              placeholder="Cari kegiatan atau sub kegiatan..."
+              placeholder="Cari Survei/Sensus, Kegiatan, atau pengawas..."
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm transition bg-gray-50 focus:bg-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -379,7 +380,7 @@ const ManageKegiatan = () => {
           </div>
         ) : filteredKegiatan.length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-            <p className="text-gray-500 font-medium">Tidak ditemukan kegiatan yang cocok.</p>
+            <p className="text-gray-500 font-medium">Tidak ditemukan Survei/Sensus yang cocok.</p>
             <button onClick={() => {setSearchTerm(''); setFilterYear('')}} className="mt-2 text-[#1A2A80] text-sm underline hover:text-blue-800">Reset Filter</button>
           </div>
         ) : (
@@ -401,8 +402,8 @@ const ManageKegiatan = () => {
                   </div>
                   <div className="flex items-center gap-2 pl-12 md:pl-0">
                     {/* Edit Kegiatan Induk: Redirect ke halaman EditKegiatan Full */}
-                    <Link to={`/admin/manage-kegiatan/edit/${item.id}`} onClick={(e) => e.stopPropagation()} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded transition" title="Edit Kegiatan Induk & Atur Honor"><FaEdit /></Link>
-                    <button onClick={(e) => handleDelete(e, item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded transition" title="Hapus Kegiatan Induk"><FaTrash /></button>
+                    <Link to={`/admin/manage-kegiatan/edit/${item.id}`} onClick={(e) => e.stopPropagation()} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded transition" title="Edit Survei/Sensus & Atur Honor"><FaEdit /></Link>
+                    <button onClick={(e) => handleDelete(e, item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded transition" title="Hapus Survei/Sensus"><FaTrash /></button>
                   </div>
                 </div>
 
@@ -410,7 +411,7 @@ const ManageKegiatan = () => {
                 {isExpanded && (
                   <div className="bg-gray-50/50 border-t border-gray-100 animate-fade-in-down">
                     {loadingSub && !subKegiatanMap[item.id] ? (
-                      <div className="p-6 text-center text-gray-500 text-sm italic">Memuat sub kegiatan...</div>
+                      <div className="p-6 text-center text-gray-500 text-sm italic">Memuat Kegiatan...</div>
                     ) : (
                       <>
                         {subKegiatanMap[item.id] && subKegiatanMap[item.id].length > 0 ? (
@@ -418,7 +419,7 @@ const ManageKegiatan = () => {
                             <table className="w-full text-left text-sm bg-white rounded-lg border border-gray-200 overflow-hidden">
                               <thead className="bg-gray-50 text-gray-500 uppercase text-xs font-bold border-b border-gray-200">
                                 <tr>
-                                  <th className="px-4 py-3 w-1/3">Nama Sub Kegiatan</th>
+                                  <th className="px-4 py-3 w-1/3">Nama Kegiatan</th>
                                   <th className="px-4 py-3">Jadwal Pelaksanaan</th>
                                   <th className="px-4 py-3 text-center">Status</th>
                                   <th className="px-4 py-3 text-right">Aksi</th>
@@ -455,7 +456,7 @@ const ManageKegiatan = () => {
                                             <button 
                                                 onClick={(e) => handleEditSubClick(e, sub)} 
                                                 className="text-gray-400 hover:text-green-600 p-1.5 rounded hover:bg-green-50 transition"
-                                                title="Edit Info Sub Kegiatan"
+                                                title="Edit Info Kegiatan"
                                             >
                                                 <FaEdit />
                                             </button>
@@ -463,7 +464,7 @@ const ManageKegiatan = () => {
                                             <button 
                                                 onClick={(e) => handleDeleteSub(e, sub.id, item.id)} 
                                                 className="text-gray-400 hover:text-red-600 p-1.5 rounded hover:bg-red-50 transition"
-                                                title="Hapus Sub Kegiatan"
+                                                title="Hapus Kegiatan"
                                             >
                                                 <FaTrash />
                                             </button>
@@ -477,9 +478,9 @@ const ManageKegiatan = () => {
                           </div>
                         ) : (
                           <div className="p-8 text-center">
-                            <p className="text-sm text-gray-500 italic mb-3">Tidak ada sub kegiatan.</p>
+                            <p className="text-sm text-gray-500 italic mb-3">Tidak ada Kegiatan.</p>
                             {/* Tombol ini akan mengarah ke AddKegiatan dengan mode existing, bisa disesuaikan jika ingin tambah via modal */}
-                            <Link to={`/admin/manage-kegiatan/edit/${item.id}`} className="inline-flex items-center gap-2 text-[#1A2A80] text-xs font-bold hover:underline bg-blue-50 px-3 py-2 rounded-lg border border-blue-100"><FaPlus size={10} /> Kelola Sub Kegiatan</Link>
+                            <Link to={`/admin/manage-kegiatan/edit/${item.id}`} className="inline-flex items-center gap-2 text-[#1A2A80] text-xs font-bold hover:underline bg-blue-50 px-3 py-2 rounded-lg border border-blue-100"><FaPlus size={10} /> Kelola Kegiatan</Link>
                           </div>
                         )}
                       </>
@@ -498,7 +499,7 @@ const ManageKegiatan = () => {
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-200">
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                     <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
-                        <FaEdit className="text-[#1A2A80]" /> Edit Sub Kegiatan
+                        <FaEdit className="text-[#1A2A80]" /> Edit Kegiatan
                     </h3>
                     <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-red-500 transition">
                         <FaTimes size={20} />
@@ -506,7 +507,7 @@ const ManageKegiatan = () => {
                 </div>
                 <div className="p-6 space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nama Sub Kegiatan</label>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nama Kegiatan</label>
                         <input 
                             type="text" 
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm"

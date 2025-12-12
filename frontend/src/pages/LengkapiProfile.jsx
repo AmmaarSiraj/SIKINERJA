@@ -1,341 +1,208 @@
+// src/pages/LengkapiProfile.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
+import Swal from 'sweetalert2';
+import { FaUserCircle, FaSave, FaLock, FaEnvelope, FaUser, FaCheckCircle } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const LengkapiProfile = () => {
+  const [user, setUser] = useState(null);
   const [formData, setFormData] = useState({
-    id_user: '',
-    nama_lengkap: '',
-    nik: '',
-    alamat: '',
-    no_hp: '',
+    username: '',
     email: '',
-    no_rekening: '',
-    nama_bank: '',
+    password: '',
+    confPassword: ''
   });
+  const [loading, setLoading] = useState(false);
 
-  const [loading, setLoading] = useState(true); // Mulai true untuk cek status
-  const [error, setError] = useState('');
-  const [statusPengajuan, setStatusPengajuan] = useState(null); // 'pending', 'approved', 'rejected'
-  const navigate = useNavigate();
-
-  // 1. Cek status pengajuan & isi data user
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const storedUser = localStorage.getItem('user');
-        if (!storedUser) {
-          throw new Error('Anda harus login untuk mengakses halaman ini.');
-        }
-        const user = JSON.parse(storedUser);
-
-        // Set data awal form
-        setFormData((prev) => ({
-          ...prev,
-          id_user: user.id,
-          email: user.email,
-        }));
-
-        // Cek apakah user sudah pernah mengajukan
-        try {
-          const response = await axios.get(
-            `${API_URL}/api/manajemen-mitra/user/${user.id}`
-          );
-          // Jika data ditemukan, set statusnya
-          setStatusPengajuan(response.data.status);
-        } catch (err) {
-          if (err.response && err.response.status === 404) {
-            // 404 berarti 'Belum ada pengajuan', ini BUKAN error
-            setStatusPengajuan(null);
-          } else {
-            throw err; // Lempar error lain
-          }
-        }
-      } catch (err) {
-        setError(
-          err.response?.data?.error ||
-            err.message ||
-            'Gagal memuat data'
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+    // 1. Ambil data user dari LocalStorage saat load
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      setUser(parsedUser);
+      setFormData({
+        username: parsedUser.username || '',
+        email: parsedUser.email || '',
+        password: '',
+        confPassword: ''
+      });
+    }
   }, []);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validasi Password
+    if (formData.password && formData.password !== formData.confPassword) {
+      return Swal.fire('Gagal', 'Password baru dan konfirmasi tidak cocok!', 'error');
+    }
+
     setLoading(true);
-    setError('');
-
     try {
-      // 2. Kirim data ke endpoint PENGUSULAN
-      // (Kita tidak perlu token karena authMiddleware sudah dihapus)
-      await axios.post(`${API_URL}/api/manajemen-mitra`, formData);
+      const token = localStorage.getItem('token');
+      
+      // Payload hanya kirim yang diubah
+      const payload = {
+        username: formData.username,
+      };
+      // Jika password diisi, masukkan ke payload
+      if (formData.password) {
+        payload.password = formData.password;
+      }
 
-      // 3. Jika sukses, update status & arahkan ke home
-      setStatusPengajuan('pending'); // Set status di frontend
-      alert('Pengajuan berhasil terkirim! Admin akan segera meninjau data Anda.');
-      navigate('/home');
+      // 2. Request Update ke Backend
+      await axios.put(`${API_URL}/api/users/${user.id}`, payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // 3. Update LocalStorage dengan data baru (kecuali password)
+      const updatedUser = { ...user, username: formData.username };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      
+      // Reset field password
+      setFormData(prev => ({ ...prev, password: '', confPassword: '' }));
+
+      Swal.fire({
+        title: 'Berhasil!',
+        text: 'Profil Anda berhasil diperbarui.',
+        icon: 'success',
+        confirmButtonColor: '#1A2A80'
+      });
+      
     } catch (err) {
       console.error(err);
-      setError(
-        err.response?.data?.error ||
-          'Gagal mengirim pengajuan. Pastikan NIK tidak duplikat.'
-      );
+      Swal.fire('Gagal', err.response?.data?.message || "Terjadi kesalahan saat memperbarui profil.", 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  // Tampilan loading awal
-  if (loading) {
-    return (
-      <div className="container mx-auto max-w-2xl p-8 text-center">
-        <p>Memeriksa status pengajuan...</p>
-      </div>
-    );
-  }
+  if (!user) return <div className="p-10 text-center text-gray-500">Memuat profil...</div>;
 
-  // Tampilan jika pengajuan sedang ditinjau atau sudah diproses
-  if (statusPengajuan === 'pending') {
-    return (
-      <div className="container mx-auto max-w-2xl p-8 text-center">
-        <h1 className="text-2xl font-bold mb-4 text-gray-800">
-          Pengajuan Anda Sedang Ditinjau
-        </h1>
-        <p className="mb-6 text-gray-600">
-          Data Anda telah kami terima dan sedang dalam proses verifikasi oleh
-          Admin.
-        </p>
-        <Link to="/home" className="text-indigo-600 hover:underline">
-          Kembali ke Home
-        </Link>
-      </div>
-    );
-  }
-  
-  // Tampilan jika ditolak (Opsional)
-  if (statusPengajuan === 'rejected') {
-     return (
-      <div className="container mx-auto max-w-2xl p-8 text-center">
-        <h1 className="text-2xl font-bold mb-4 text-red-600">
-          Pengajuan Anda Ditolak
-        </h1>
-        <p className="mb-6 text-gray-600">
-          Mohon maaf, pengajuan Anda ditolak oleh admin. Silakan hubungi admin untuk informasi lebih lanjut.
-        </p>
-        {/* Anda bisa tambahkan tombol untuk mengajukan ulang di sini */}
-        <Link to="/home" className="text-indigo-600 hover:underline">
-          Kembali ke Home
-        </Link>
-      </div>
-    );
-  }
-  
-  // Tampilan jika sudah disetujui (Opsional)
-  if (statusPengajuan === 'approved') {
-     return (
-      <div className="container mx-auto max-w-2xl p-8 text-center">
-        <h1 className="text-2xl font-bold mb-4 text-green-600">
-          Anda Sudah Menjadi Mitra
-        </h1>
-        <p className="mb-6 text-gray-600">
-          Akun Anda telah disetujui. Anda sekarang dapat melihat penugasan.
-        </p>
-        <Link to="/home" className="text-indigo-600 hover:underline">
-          Kembali ke Home
-        </Link>
-      </div>
-    );
-  }
-
-  // Tampilan form pengajuan (jika statusPengajuan === null)
   return (
-    <div className="container mx-auto max-w-2xl p-8">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">
-        Form Pengajuan Mitra
-      </h1>
-      <p className="mb-6 text-gray-600">
-        Data Anda akan ditinjau oleh Admin sebelum akun Anda diaktifkan sebagai
-        mitra.
-      </p>
-
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-8 rounded-lg shadow-md space-y-6"
-      >
-        {error && (
-          <div
-            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"
-            role="alert"
-          >
-            {error}
-          </div>
-        )}
-
-        {/* Data Akun (Read Only) */}
-        <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-500">
-                User ID
-              </label>
-              <p className="text-gray-900 font-medium">
-                {formData.id_user || '-'}
-              </p>
+    <div className="container mx-auto px-4 py-10 max-w-4xl animate-fade-in-up">
+      
+      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 flex flex-col md:flex-row">
+        
+        {/* SISI KIRI: INFO STATIC */}
+        <div className="bg-[#1A2A80] text-white p-10 md:w-1/3 flex flex-col items-center justify-center text-center">
+          <div className="mb-4 relative">
+            <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center text-5xl text-white backdrop-blur-sm border-2 border-white/30">
+                <FaUserCircle />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-500">
-                Email Terdaftar
-              </label>
-              <p className="text-gray-900 font-medium">
-                {formData.email || '-'}
-              </p>
+            <div className="absolute bottom-0 right-0 bg-green-500 w-6 h-6 rounded-full border-4 border-[#1A2A80]"></div>
+          </div>
+          <h2 className="text-xl font-bold">{user.username}</h2>
+          <p className="text-blue-200 text-sm mb-6">{user.email}</p>
+          
+          <div className="bg-white/10 rounded-lg p-4 w-full text-sm space-y-2 border border-white/10">
+            <div className="flex justify-between">
+              <span className="text-blue-200">Role:</span>
+              <span className="font-bold uppercase tracking-wider">{user.role}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-blue-200">Status:</span>
+              <span className="font-bold flex items-center gap-1 text-green-300"><FaCheckCircle /> Aktif</span>
             </div>
           </div>
         </div>
 
-        {/* Form Input */}
-        <div>
-          <label
-            htmlFor="nama_lengkap"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Nama Lengkap (Sesuai KTP)
-          </label>
-          <input
-            type="text"
-            name="nama_lengkap"
-            id="nama_lengkap"
-            value={formData.nama_lengkap}
-            onChange={handleChange}
-            required
-            className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label
-              htmlFor="nik"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              NIK
-            </label>
-            <input
-              type="text"
-              name="nik"
-              id="nik"
-              value={formData.nik}
-              onChange={handleChange}
-              required
-              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            />
+        {/* SISI KANAN: FORM EDIT */}
+        <div className="p-10 md:w-2/3 bg-white">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-800">Edit Profil</h1>
+            <p className="text-gray-500 text-sm">Perbarui informasi akun dan kata sandi Anda di sini.</p>
           </div>
-          <div>
-            <label
-              htmlFor="no_hp"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              No. Handphone (WhatsApp)
-            </label>
-            <input
-              type="text"
-              name="no_hp"
-              id="no_hp"
-              value={formData.no_hp}
-              onChange={handleChange}
-              required
-              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-        </div>
 
-        <div>
-          <label
-            htmlFor="alamat"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Alamat (Sesuai KTP)
-          </label>
-          <textarea
-            name="alamat"
-            id="alamat"
-            rows="3"
-            value={formData.alamat}
-            onChange={handleChange}
-            required
-            className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-          ></textarea>
-        </div>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            
+            {/* Input Username */}
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                <FaUser className="text-[#1A2A80]" /> Username
+              </label>
+              <input
+                type="text"
+                name="username"
+                value={formData.username}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-[#1A2A80] focus:ring-2 focus:ring-blue-100 outline-none transition bg-gray-50 focus:bg-white"
+                placeholder="Masukkan username baru"
+              />
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label
-              htmlFor="nama_bank"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Nama Bank
-            </label>
-            <input
-              type="text"
-              name="nama_bank"
-              id="nama_bank"
-              value={formData.nama_bank}
-              onChange={handleChange}
-              required
-              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="Contoh: BCA, BRI, Mandiri"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="no_rekening"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Nomor Rekening
-            </label>
-            <input
-              type="text"
-              name="no_rekening"
-              id="no_rekening"
-              value={formData.no_rekening}
-              onChange={handleChange}
-              required
-              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-        </div>
+            {/* Input Email (Read Only) */}
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                <FaEnvelope className="text-[#1A2A80]" /> Email (Login)
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                readOnly
+                className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed outline-none"
+              />
+              <p className="text-xs text-gray-400 mt-1">*Email tidak dapat diubah secara langsung.</p>
+            </div>
 
-        {/* Tombol Submit */}
-        <div className="text-right">
-          <Link
-            to="/home"
-            className="text-gray-600 hover:underline mr-4"
-          >
-            Batal
-          </Link>
-          <button
-            type="submit"
-            disabled={loading}
-            className="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400"
-          >
-            {loading ? 'Mengirim...' : 'Kirim Pengajuan'}
-          </button>
+            <hr className="border-dashed border-gray-200 my-4" />
+
+            {/* Input Password Baru */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                  <FaLock className="text-[#1A2A80]" /> Password Baru
+                </label>
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-[#1A2A80] focus:ring-2 focus:ring-blue-100 outline-none transition"
+                  placeholder="Kosongkan jika tetap"
+                />
+              </div>
+              
+              {/* Konfirmasi Password */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                  <FaLock className="text-[#1A2A80]" /> Konfirmasi Password
+                </label>
+                <input
+                  type="password"
+                  name="confPassword"
+                  value={formData.confPassword}
+                  onChange={handleChange}
+                  disabled={!formData.password}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-[#1A2A80] focus:ring-2 focus:ring-blue-100 outline-none transition disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  placeholder="Ulangi password"
+                />
+              </div>
+            </div>
+
+            {/* Tombol Simpan */}
+            <div className="pt-4 flex justify-end">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex items-center gap-2 bg-[#1A2A80] hover:bg-blue-900 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition transform hover:-translate-y-1 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Menyimpan...' : <><FaSave /> Simpan Perubahan</>}
+              </button>
+            </div>
+
+          </form>
         </div>
-      </form>
+      </div>
     </div>
   );
 };

@@ -21,7 +21,7 @@ const PartEditSubKegiatan = ({ sub, onDelete, onUpdateSuccess }) => {
 
   const handleSaveInfo = async () => {
     if (!formData.nama_sub_kegiatan || !formData.tanggal_mulai) {
-        return Swal.fire('Validasi', 'Nama Sub Kegiatan dan Tanggal Mulai wajib diisi.', 'warning');
+        return Swal.fire('Validasi', 'Nama Kegiatan dan Tanggal Mulai wajib diisi.', 'warning');
     }
 
     setLoading(true);
@@ -35,7 +35,7 @@ const PartEditSubKegiatan = ({ sub, onDelete, onUpdateSuccess }) => {
       Swal.fire({
         icon: 'success',
         title: 'Berhasil',
-        text: 'Informasi sub kegiatan diperbarui.',
+        text: 'Informasi kegiatan diperbarui.',
         timer: 1500,
         showConfirmButton: false,
         toast: true,
@@ -55,11 +55,11 @@ const PartEditSubKegiatan = ({ sub, onDelete, onUpdateSuccess }) => {
       
       {/* Header Card */}
       <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-         <h3 className="font-bold text-gray-700 text-lg">Edit Sub Kegiatan</h3>
+         <h3 className="font-bold text-gray-700 text-lg">Edit Kegiatan</h3>
          <button 
             onClick={() => onDelete(sub.id)} 
             className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-full transition"
-            title="Hapus Sub Kegiatan Ini"
+            title="Hapus Kegiatan Ini"
          >
             <FaTrash />
          </button>
@@ -69,7 +69,7 @@ const PartEditSubKegiatan = ({ sub, onDelete, onUpdateSuccess }) => {
          {/* Form Input Dasar */}
          <div className="grid grid-cols-1 gap-5 mb-6">
             <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Nama Sub Kegiatan <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Nama Kegiatan <span className="text-red-500">*</span></label>
                 <input
                     type="text"
                     value={formData.nama_sub_kegiatan}

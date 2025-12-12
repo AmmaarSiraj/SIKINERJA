@@ -22,6 +22,9 @@ const aturanPeriodeRoutes = require('./routes/aturanPeriodeRoutes');
 const spkRoutes = require('./routes/spkRoutes');
 const transaksiRoutes = require('./routes/transaksiRoutes');
 const spkTemplateRoutes = require('./routes/spkTemplateRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const perencanaanRoutes = require('./routes/perencanaanRoutes');
+const kelompokPerencanaanRoutes = require('./routes/kelompokPerencanaanRoutes');
 
 app.use('/api/users', userRoutes);
 app.use('/api/kegiatan', kegiatanRoutes);
@@ -36,8 +39,14 @@ app.use('/api/satuan', satuanRoutes);
 app.use('/api/aturan-periode', aturanPeriodeRoutes);
 app.use('/api/transaksi', transaksiRoutes);
 app.use('/api/spk-templates', spkTemplateRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/perencanaan', perencanaanRoutes);
+app.use('/api/kelompok-perencanaan', kelompokPerencanaanRoutes);
 app.get('/', (req, res) => {
   res.json({ message: 'Backend is running 🚀' });
+});
+app.get('/test', (req, res) => {
+  res.json({ message: 'test 🚀' });
 });
 app.use('/api/spk', spkRoutes);
 

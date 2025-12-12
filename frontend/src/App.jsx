@@ -33,6 +33,16 @@ import LengkapiProfile from './pages/LengkapiProfile';
 import DetailKegiatanUser from './pages/DetailKegiatanUser';
 import PenugasanUser from './pages/Penugasan';
 import MitraUser from './pages/Mitra';
+import TransaksiMitraUser from './pages/TransaksiMitraUser';
+import DetailMitraUser from './pages/DetailMitraUser';
+import TambahPenugasanUser from './pages/TambahPenugasan';
+import DetailPenugasanUser from './pages/DetailPenugasan';
+import EditPenugasanUser from './pages/EditPenugasan';
+import ManajemenKegiatan from './pages/ManajemenKegiatan';
+import ManajemenSPKUser from './pages/ManajemenSPK';
+import CetakSPKUser from './pages/CetakSPKUser';
+import TambahTemplateSPKUser from './pages/TambahTemplateSPKUser';
+import PreviewTemplateSPKUser from './pages/PreviewTemplateSPKUser';
 
 import Layout from './layouts/Layout';
 import AdminLayout from './layouts/AdminLayout';
@@ -55,7 +65,18 @@ function AppRoutes() {
             <Route path="/kegiatan/:id" element={<DetailKegiatanUser />} />
             <Route path="/penugasan" element={<PenugasanUser />} />
             <Route path="/daftar-mitra" element={<MitraUser />} />
+            <Route path="/transaksi-mitra" element={<TransaksiMitraUser />} />
+            <Route path="/transaksi-mitra/:id" element={<DetailMitraUser />} />
+            <Route path="/penugasan/tambah" element={<TambahPenugasanUser />} />
+            <Route path="/penugasan/:id" element={<DetailPenugasanUser />} />
+            <Route path="/penugasan/edit/:id" element={<EditPenugasanUser />} />
+            <Route path="/daftar-kegiatan" element={<ManajemenKegiatan />} />
+            <Route path="/spk" element={<ManajemenSPKUser />} />
+            <Route path="/spk/templates/create" element={<TambahTemplateSPKUser />} />
+            <Route path="/spk/templates/edit/:id" element={<TambahTemplateSPKUser />} />
           </Route>
+          <Route path="/spk/print/:periode/:id_mitra" element={<CetakSPKUser />} />
+          <Route path="/spk/templates/preview" element={<PreviewTemplateSPKUser />} />
         </Route>
 
         <Route element={<RequireAuth allowedRoles={['admin']} />}>
@@ -74,7 +95,7 @@ function AppRoutes() {
             <Route path="/admin/manage-kegiatan/detail/:id" element={<DetailKegiatan />} />
             <Route path="/admin/penugasan/preview" element={<TemplatePenugasan />} />
             <Route path="/admin/mitra/tambah" element={<AddMitra />} />
-            
+
             <Route path="/admin/penugasan" element={<Penugasan />} />
             <Route path="/admin/penugasan/tambah" element={<TambahPenugasan />} />
             <Route path="/admin/penugasan/detail/:id" element={<DetailPenugasan />} />
@@ -93,7 +114,7 @@ function AppRoutes() {
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
-        
+
       </Routes>
     </BrowserRouter>
   );

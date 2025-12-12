@@ -32,25 +32,25 @@ const PartSubKegiatan = ({ subKegiatans, setSubKegiatans }) => {
                <span className="bg-[#1A2A80] text-white w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold shadow-sm">
                   {index + 1}
                </span>
-               <h3 className="font-bold text-gray-800 text-lg">Rincian Sub Kegiatan</h3>
+               <h3 className="font-bold text-gray-800 text-lg">Rincian Kegiatan</h3>
              </div>
              <button
                type="button"
                onClick={() => removeSubKegiatan(sub.id)}
                className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-full transition"
-               title="Hapus Sub Kegiatan Ini"
+               title="Hapus Kegiatan Ini"
              >
                <FaTrash />
              </button>
           </div>
 
           <div className="p-6">
-            {/* Form Sub Kegiatan */}
+            {/* Form Kegiatan */}
             <div className="grid grid-cols-1 gap-5 mb-6">
                 
-                {/* Baris 1: Nama Sub Kegiatan */}
+                {/* Baris 1: Nama Kegiatan (Sebelumnya Sub Kegiatan) */}
                 <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Nama Sub Kegiatan <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Nama Kegiatan <span className="text-red-500">*</span></label>
                     <input
                         type="text"
                         value={sub.nama_sub_kegiatan}

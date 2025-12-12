@@ -1,9 +1,10 @@
-// src/pages/admin/DetailPenugasan.jsx
+// src/pages/DetailPenugasan.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import PopupTambahAnggota from '../../components/admin/PopupTambahAnggota';
+// Perhatikan path import komponen admin ini
+import PopupTambahAnggota from '../components/admin/PopupTambahAnggota';
 import { 
   FaArrowLeft, FaTrash, FaPlus, FaUserTie, FaChartPie, 
   FaClipboardList, FaExclamationTriangle, FaMoneyBillWave,
@@ -138,7 +139,7 @@ const DetailPenugasan = () => {
     }
   };
 
-  // 4. HANDLER DELETE
+  // 4. HANDLER DELETE ANGGOTA
   const handleRemoveAnggota = async (id_kelompok, nama_mitra) => {
     const result = await Swal.fire({
       title: 'Keluarkan Anggota?',
@@ -164,6 +165,7 @@ const DetailPenugasan = () => {
     }
   };
 
+  // 5. HANDLER BUBARKAN TIM
   const handleDeletePenugasan = async () => {
     const result = await Swal.fire({
       title: 'Bubarkan Tim?',
@@ -180,7 +182,8 @@ const DetailPenugasan = () => {
         await axios.delete(`${API_URL}/api/penugasan/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        navigate('/admin/penugasan');
+        // Redirect ke halaman Penugasan User
+        navigate('/penugasan');
         Swal.fire('Dibubarkan!', 'Tim berhasil dibubarkan.', 'success');
       } catch (err) {
         Swal.fire('Gagal!', 'Gagal membubarkan tim.', 'error');
@@ -197,13 +200,13 @@ const DetailPenugasan = () => {
 
   return (
     <>
-      <div className="w-full space-y-8 pb-20">
+      <div className="w-full space-y-8 pb-20 pt-8 px-4 container mx-auto max-w-6xl">
         
         {/* === HEADER & NAVIGATION === */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <Link 
-              to="/admin/penugasan" 
+              to="/penugasan" 
               className="inline-flex items-center gap-2 text-gray-500 hover:text-[#1A2A80] transition font-medium mb-2"
             >
               <FaArrowLeft size={14} /> Kembali ke Daftar

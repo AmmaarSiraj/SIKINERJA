@@ -10,7 +10,8 @@ import {
   FaBriefcase,
   FaExclamationCircle,
   FaBoxOpen,
-  FaFilter 
+  FaFilter,
+  FaChartPie
 } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -20,7 +21,8 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
   // Data State
   const [allMitra, setAllMitra] = useState([]);
   const [availableJobs, setAvailableJobs] = useState([]); 
-  const [targetYear, setTargetYear] = useState(null); // State untuk Tahun Aktif
+  const [currentTeamData, setCurrentTeamData] = useState([]); // Data anggota tim saat ini (untuk hitung kuota terpakai)
+  const [targetYear, setTargetYear] = useState(null); 
   
   // Selection State
   const [selectedJob, setSelectedJob] = useState(''); 
@@ -41,11 +43,16 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
           const token = getToken();
           const headers = { Authorization: `Bearer ${token}` };
 
-          // A. Ambil Detail Penugasan
-          const resPenugasan = await axios.get(`${API_URL}/api/penugasan/${id_penugasan}`, { headers });
-          const { id_subkegiatan, tanggal_mulai } = resPenugasan.data;
+          // A. Ambil Detail Penugasan & Anggota Tim Saat Ini (PENTING untuk hitung sisa kuota)
+          const [resPenugasan, resAnggotaTim] = await Promise.all([
+            axios.get(`${API_URL}/api/penugasan/${id_penugasan}`, { headers }),
+            axios.get(`${API_URL}/api/penugasan/${id_penugasan}/anggota`, { headers })
+          ]);
 
-          // Set Target Year dari Tanggal Mulai Sub Kegiatan
+          const { id_subkegiatan, tanggal_mulai } = resPenugasan.data;
+          setCurrentTeamData(resAnggotaTim.data || []);
+
+          // Set Target Year
           if (tanggal_mulai) {
             const year = new Date(tanggal_mulai).getFullYear().toString();
             setTargetYear(year);
@@ -57,14 +64,15 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
             axios.get(`${API_URL}/api/honorarium`, { headers })
           ]);
 
-          // C. Filter Jabatan
+          // C. Filter Jabatan & Ambil BASIS VOLUME
           const validHonors = resHonor.data.filter(h => h.id_subkegiatan == id_subkegiatan);
           
           const jobs = validHonors.map(h => ({
             kode: h.kode_jabatan,
             nama: h.nama_jabatan,
             tarif: h.tarif,
-            satuan: h.nama_satuan 
+            satuan: h.nama_satuan,
+            basis_volume: Number(h.basis_volume) || 0 // Load Basis Volume
           }));
 
           setAllMitra(resMitra.data || []);
@@ -87,28 +95,45 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
     }
   }, [isOpen, id_penugasan]);
 
-  // 2. FILTER MITRA (Termasuk Tahun Aktif)
+  // 2. HITUNG SISA KUOTA BERDASARKAN JABATAN TERPILIH
+  const quotaInfo = useMemo(() => {
+    if (!selectedJob) return { sisa: 0, total: 0, terpakai: 0 };
+
+    const jobInfo = availableJobs.find(j => j.kode === selectedJob);
+    if (!jobInfo) return { sisa: 0, total: 0, terpakai: 0 };
+
+    const totalQuota = jobInfo.basis_volume;
+    
+    // Hitung volume yang sudah dipakai oleh anggota lain di jabatan yang sama
+    const usedQuota = currentTeamData
+      .filter(m => m.kode_jabatan === selectedJob)
+      .reduce((acc, curr) => acc + (Number(curr.volume_tugas) || 0), 0);
+
+    return {
+        total: totalQuota,
+        terpakai: usedQuota,
+        sisa: Math.max(0, totalQuota - usedQuota)
+    };
+  }, [selectedJob, availableJobs, currentTeamData]);
+
+  // 3. FILTER MITRA (Termasuk Tahun Aktif)
   const availableMitra = useMemo(() => {
     if (!existingAnggotaIds) return allMitra;
     const excludedIds = new Set(existingAnggotaIds.map(id => String(id)));
     
     return allMitra
       .filter(mitra => {
-        // Filter 1: Tidak sedang terpilih/ada di tim
         const notInTeam = !excludedIds.has(String(mitra.id));
         
-        // Filter 2: Pencarian Nama/NIK
         const matchSearch = 
             mitra.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (mitra.nik && mitra.nik.includes(searchTerm));
 
-        // Filter 3: Tahun Aktif (Sesuai Sub Kegiatan)
         let isActiveInYear = false;
         if (targetYear && mitra.riwayat_tahun) {
             const years = mitra.riwayat_tahun.split(', ');
             isActiveInYear = years.includes(targetYear);
         } else if (!targetYear) {
-            // Jika tanggal mulai tidak ada, anggap lolos (fallback)
             isActiveInYear = true;
         }
 
@@ -116,7 +141,7 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
       });
   }, [allMitra, existingAnggotaIds, searchTerm, targetYear]);
 
-  // 3. HANDLER TAMBAH ANGGOTA
+  // 4. HANDLER TAMBAH ANGGOTA
   const handleAddAnggota = async (id_mitra) => {
     if (!selectedJob) {
       Swal.fire('Peringatan', 'Harap pilih posisi/jabatan terlebih dahulu!', 'warning');
@@ -124,6 +149,16 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
     }
     
     const finalVolume = (!volume || volume <= 0) ? 1 : volume;
+
+    // VALIDASI KUOTA
+    if (quotaInfo.total > 0 && finalVolume > quotaInfo.sisa) {
+        Swal.fire({
+            title: 'Kuota Tidak Cukup',
+            text: `Sisa kuota untuk jabatan ini hanya ${quotaInfo.sisa}, sedangkan Anda ingin menambahkan ${finalVolume}.`,
+            icon: 'warning'
+        });
+        return;
+    }
 
     try {
       const token = getToken();
@@ -138,6 +173,19 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
+      // Update data lokal (currentTeamData) agar perhitungan kuota langsung update tanpa refresh page penuh
+      const mitraBaru = allMitra.find(m => m.id === id_mitra);
+      setCurrentTeamData(prev => [
+          ...prev, 
+          { 
+              id_mitra, 
+              kode_jabatan: selectedJob, 
+              volume_tugas: finalVolume,
+              // Data dummy sekedar untuk perhitungan lokal
+              nama_lengkap: mitraBaru?.nama_lengkap 
+          }
+      ]);
+
       Swal.fire({
         title: 'Berhasil!',
         text: 'Anggota berhasil ditambahkan ke tim.',
@@ -148,10 +196,10 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
         position: 'top-end'
       });
 
-      onAnggotaAdded(); 
+      onAnggotaAdded(); // Trigger refresh di parent component
     } catch (err) {
       console.error(err);
-      const msg = err.response?.data?.error || 'Gagal menambahkan anggota. Pastikan batas honor mencukupi.';
+      const msg = err.response?.data?.error || 'Gagal menambahkan anggota.';
       Swal.fire('Gagal', msg, 'error');
     }
   };
@@ -199,38 +247,58 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
                     >
                         {availableJobs.map((job) => (
                             <option key={job.kode} value={job.kode}>
-                                {job.nama} (Rp {Number(job.tarif).toLocaleString('id-ID')})
+                                {job.nama} (Rp {Number(job.tarif).toLocaleString('id-ID')}) - Kuota: {job.basis_volume}
                             </option>
                         ))}
                     </select>
                 )}
             </div>
 
-            {/* 2. Atur Volume */}
+            {/* 2. Atur Volume & Info Kuota */}
             <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2">
-                    <FaBoxOpen className="text-[#1A2A80]" /> Atur Jumlah Tugas (Target Volume)
-                </label>
+                <div className="flex justify-between items-center mb-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase flex items-center gap-2">
+                        <FaBoxOpen className="text-[#1A2A80]" /> Volume Tugas
+                    </label>
+                    {/* Badge Sisa Kuota */}
+                    {selectedJob && (
+                        <div className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 border ${quotaInfo.sisa === 0 ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                            <FaChartPie />
+                            Sisa Kuota: {quotaInfo.sisa} / {quotaInfo.total}
+                        </div>
+                    )}
+                </div>
+                
                 <div className="flex items-center">
                     <input 
                         type="number" 
-                        min="1" 
+                        min="1"
+                        max={quotaInfo.total > 0 ? quotaInfo.sisa : undefined}
                         value={volume}
                         onFocus={(e) => e.target.select()} 
                         onChange={(e) => {
                             const val = e.target.value;
-                            setVolume(val === '' ? '' : parseInt(val));
+                            const intVal = parseInt(val);
+                            // Validasi input manual agar tidak lebih dari sisa
+                            if (val !== '' && quotaInfo.total > 0 && intVal > quotaInfo.sisa) {
+                                return; // Prevent typing more than limit
+                            }
+                            setVolume(val === '' ? '' : intVal);
                         }}
                         onBlur={() => {
                             if (!volume || volume < 1) setVolume(1);
                         }}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-l-xl focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm font-bold bg-gray-50 focus:bg-white transition"
+                        className={`w-full px-4 py-2.5 border rounded-l-xl focus:ring-2 outline-none text-sm font-bold transition ${quotaInfo.sisa === 0 ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-gray-50 focus:bg-white border-gray-300 focus:ring-[#1A2A80]'}`}
                         placeholder="1"
+                        disabled={quotaInfo.sisa === 0 && quotaInfo.total > 0}
                     />
                     <div className="bg-gray-100 border border-l-0 border-gray-300 px-4 py-2.5 rounded-r-xl text-sm font-medium text-gray-500">
-                        Unit/Dokumen
+                        Unit
                     </div>
                 </div>
+                {quotaInfo.sisa === 0 && quotaInfo.total > 0 && (
+                    <p className="text-[10px] text-red-500 mt-1 italic">* Kuota untuk jabatan ini sudah penuh.</p>
+                )}
             </div>
 
         </div>
@@ -238,11 +306,10 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
         {/* SEARCH BAR & FILTER BADGE */}
         <div className="px-5 py-3 border-b border-t border-gray-100 bg-gray-50/50">
           
-          {/* Badge Filter Tahun */}
           {targetYear && (
             <div className="mb-2">
                 <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-[10px] px-2 py-1 rounded border border-blue-200 font-bold shadow-sm">
-                    <FaFilter size={10} /> Menampilkan Mitra Aktif Tahun {targetYear}
+                    <FaFilter size={10} /> Mitra Aktif Thn {targetYear}
                 </span>
             </div>
           )}
@@ -274,7 +341,7 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
                         <p className="text-sm">
                            {searchTerm 
                              ? "Tidak ada mitra yang cocok." 
-                             : `Tidak ada mitra aktif tahun ${targetYear} yang belum masuk tim.`}
+                             : `Tidak ada mitra tersedia.`}
                         </p>
                     </div>
                 ) : (
@@ -299,9 +366,9 @@ const PopupTambahAnggota = ({ isOpen, onClose, id_penugasan, existingAnggotaIds,
                             
                             <button
                                 onClick={() => handleAddAnggota(mitra.id)}
-                                disabled={!selectedJob}
+                                disabled={!selectedJob || (quotaInfo.sisa === 0 && quotaInfo.total > 0)}
                                 className={`text-xs font-bold py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 flex-shrink-0 transition 
-                                  ${selectedJob 
+                                  ${selectedJob && (quotaInfo.sisa > 0 || quotaInfo.total === 0)
                                     ? 'bg-[#1A2A80] hover:bg-blue-900 text-white hover:shadow' 
                                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
                             >

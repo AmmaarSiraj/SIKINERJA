@@ -50,10 +50,10 @@ const AddKegiatan = () => {
 
   const handleNextStep = () => {
     if (modeInput === 'new' && !indukData.nama_kegiatan) {
-        return Swal.fire('Data Belum Lengkap', 'Nama Kegiatan Baru wajib diisi', 'warning');
+        return Swal.fire('Data Belum Lengkap', 'Nama Survei/Sensus Baru wajib diisi', 'warning');
     }
     if (modeInput === 'existing' && !indukData.id_selected) {
-        return Swal.fire('Belum Memilih', 'Silakan pilih Kegiatan yang sudah ada dari daftar', 'warning');
+        return Swal.fire('Belum Memilih', 'Silakan pilih Survei/Sensus yang sudah ada dari daftar', 'warning');
     }
     
     setStep(2);
@@ -75,14 +75,14 @@ const AddKegiatan = () => {
     // Validasi Input
     for (const sub of subKegiatans) {
       if (!sub.nama_sub_kegiatan) {
-          return Swal.fire('Validasi Gagal', 'Ada nama sub kegiatan yang masih kosong.', 'error');
+          return Swal.fire('Validasi Gagal', 'Ada nama kegiatan yang masih kosong.', 'error');
       }
       if (!sub.tanggal_mulai) {
           return Swal.fire('Validasi Gagal', `Tanggal Mulai pada "${sub.nama_sub_kegiatan}" wajib diisi.`, 'error');
       }
       for (const h of sub.honorList) {
         if (!h.kode_jabatan) {
-            return Swal.fire('Validasi Gagal', `Jabatan pada sub kegiatan "${sub.nama_sub_kegiatan}" belum dipilih.`, 'error');
+            return Swal.fire('Validasi Gagal', `Jabatan pada kegiatan "${sub.nama_sub_kegiatan}" belum dipilih.`, 'error');
         }
         if (h.tarif <= 0) {
             return Swal.fire('Validasi Gagal', `Tarif untuk jabatan pada "${sub.nama_sub_kegiatan}" tidak boleh nol.`, 'error');
@@ -138,7 +138,7 @@ const AddKegiatan = () => {
 
       Swal.fire({
         title: 'Berhasil!',
-        text: 'Seluruh data kegiatan tersimpan.',
+        text: 'Seluruh data survei/sensus tersimpan.',
         icon: 'success',
         timer: 2000,
         showConfirmButton: false
@@ -164,7 +164,7 @@ const AddKegiatan = () => {
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-gray-800">
-            {modeInput === 'new' ? 'Buat Kegiatan Baru' : 'Tambah Sub Kegiatan'}
+            {modeInput === 'new' ? 'Buat Survei/Sensus Baru' : 'Tambah Kegiatan'}
           </h1>
           <p className="text-sm text-gray-500 flex items-center gap-2">
             <span className={`px-2 py-0.5 rounded ${step === 1 ? 'bg-[#1A2A80] text-white font-bold' : 'bg-gray-200 text-gray-500'}`}>1. Induk</span>
@@ -184,7 +184,7 @@ const AddKegiatan = () => {
               className={`px-6 py-4 rounded-xl font-bold border-2 transition flex items-center justify-center gap-3 ${modeInput === 'new' ? 'bg-blue-50 border-[#1A2A80] text-[#1A2A80]' : 'bg-white border-gray-100 text-gray-400 hover:border-gray-300'}`}
             >
               <div className={`p-2 rounded-full ${modeInput === 'new' ? 'bg-[#1A2A80] text-white' : 'bg-gray-100'}`}><FaPlus /></div>
-              Buat Kegiatan Baru
+              Buat Survei/Sensus Baru
             </button>
             <button
               onClick={() => setModeInput('existing')}
@@ -198,13 +198,13 @@ const AddKegiatan = () => {
           <div className="space-y-6 max-w-2xl mx-auto">
             {modeInput === 'existing' ? (
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Pilih Kegiatan Induk</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Pilih Survei/Sensus Induk</label>
                 <select 
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] outline-none"
                   value={indukData.id_selected}
                   onChange={(e) => setIndukData({...indukData, id_selected: e.target.value})}
                 >
-                  <option value="">-- Pilih Kegiatan --</option>
+                  <option value="">-- Pilih Survei/Sensus --</option>
                   {existingKegiatanList.map(k => (
                     <option key={k.id} value={k.id}>{k.nama_kegiatan}</option>
                   ))}
@@ -213,7 +213,7 @@ const AddKegiatan = () => {
             ) : (
               <>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Nama Kegiatan <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Nama Survei/Sensus <span className="text-red-500">*</span></label>
                   <input 
                     type="text" 
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] outline-none" 
@@ -227,7 +227,7 @@ const AddKegiatan = () => {
                   <textarea 
                     rows="4" 
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none resize-none" 
-                    placeholder="Jelaskan tujuan kegiatan ini..."
+                    placeholder="Jelaskan tujuan survei/sensus ini..."
                     value={indukData.deskripsi} 
                     onChange={(e) => setIndukData({...indukData, deskripsi: e.target.value})} 
                   />
@@ -256,13 +256,13 @@ const AddKegiatan = () => {
           
           <div className="bg-blue-50 border border-blue-200 p-5 rounded-xl mb-8 flex justify-between items-center shadow-sm">
              <div>
-                <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Kegiatan Induk Terpilih</span>
+                <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Survei/Sensus Induk Terpilih</span>
                 <h2 className="text-xl font-bold text-gray-800 mt-1">
                   {modeInput === 'new' ? indukData.nama_kegiatan : existingKegiatanList.find(k => k.id == indukData.id_selected)?.nama_kegiatan || 'Tidak diketahui'}
                 </h2>
              </div>
              <button onClick={() => setStep(1)} className="text-sm font-bold text-blue-600 hover:text-blue-800 hover:underline bg-white px-4 py-2 rounded-lg shadow-sm">
-                Ubah Induk
+                Ubah Survei/Sensus
              </button>
           </div>
 
@@ -278,7 +278,7 @@ const AddKegiatan = () => {
             <div className="bg-gray-200 group-hover:bg-[#1A2A80] text-white p-2 rounded-full transition">
                 <FaPlus size={14} />
             </div>
-            Tambah Sub Kegiatan Lain
+            Tambah Kegiatan Lain
           </button>
 
           <div className="mt-12 flex justify-between items-center pt-8 border-t border-gray-200">

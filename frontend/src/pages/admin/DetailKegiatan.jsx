@@ -19,7 +19,7 @@ import {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const DetailKegiatan = () => {
-  const { id } = useParams(); // ID Sub Kegiatan
+  const { id } = useParams(); // ID Kegiatan (Sub)
 
   const [subData, setSubData] = useState(null);
   const [honorList, setHonorList] = useState([]); 
@@ -34,7 +34,7 @@ const DetailKegiatan = () => {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
 
-        // 1. Ambil Detail Sub Kegiatan
+        // 1. Ambil Detail Kegiatan (Sub)
         const resSub = await axios.get(`${API_URL}/api/subkegiatan/${id}`, { headers });
         setSubData(resSub.data);
 
@@ -65,7 +65,7 @@ const DetailKegiatan = () => {
     return new Date(dateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  // --- LOGIKA STATUS OTOMATIS (Sama dengan ManageKegiatan) ---
+  // --- LOGIKA STATUS OTOMATIS ---
   const getComputedStatus = (startDate, endDate) => {
     if (!startDate || !endDate) return { label: 'Jadwal Belum Lengkap', className: 'bg-gray-100 text-gray-500' };
     
@@ -103,11 +103,11 @@ const DetailKegiatan = () => {
           to="/admin/manage-kegiatan" 
           className="inline-flex items-center gap-2 text-gray-500 hover:text-[#1A2A80] transition font-medium"
         >
-          <FaArrowLeft size={14} /> Kembali ke Daftar Kegiatan
+          <FaArrowLeft size={14} /> Kembali ke Daftar Survei/Sensus
         </Link>
       </div>
 
-      {/* === BAGIAN 1: Header Informasi Sub Kegiatan === */}
+      {/* === BAGIAN 1: Header Informasi Kegiatan === */}
       <div className="bg-white shadow-sm rounded-xl overflow-hidden border border-gray-100 relative">
         {/* Status Bar di Kiri (Warna dinamis sesuai status) */}
         <div className={`absolute top-0 left-0 w-1.5 h-full ${
@@ -157,7 +157,7 @@ const DetailKegiatan = () => {
                     <FaUserTag className="text-[#1A2A80]" /> Daftar Posisi & Honorarium
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">
-                    Berikut adalah daftar jabatan yang tersedia beserta nominal honorarium untuk sub kegiatan ini.
+                    Berikut adalah daftar jabatan yang tersedia beserta nominal honorarium untuk kegiatan ini.
                 </p>
             </div>
             <span className="bg-[#1A2A80] text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">
@@ -170,7 +170,7 @@ const DetailKegiatan = () => {
                 <div className="text-center py-16 text-gray-400 bg-white">
                     <div className="mb-3 text-gray-200 text-5xl flex justify-center"><FaUserTag /></div>
                     <p className="text-base font-medium text-gray-500">Belum ada aturan honorarium.</p>
-                    <p className="text-sm mb-4">Silakan atur tarif jabatan di menu Edit Kegiatan.</p>
+                    <p className="text-sm mb-4">Silakan atur tarif jabatan di menu Edit Survei/Sensus.</p>
                     <Link 
                         to={`/admin/manage-kegiatan/edit/${subData.id_kegiatan}`} 
                         className="inline-flex items-center gap-2 text-[#1A2A80] font-bold border border-blue-100 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition"

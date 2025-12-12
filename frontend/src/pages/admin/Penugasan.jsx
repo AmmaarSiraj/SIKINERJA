@@ -113,7 +113,7 @@ const Penugasan = () => {
     const filtered = allPenugasan.filter(item => {
       const term = searchTerm.toLowerCase();
       
-      // Pencarian berdasarkan Nama Kegiatan, Sub Kegiatan, atau Pengawas
+      // Pencarian berdasarkan Nama Kegiatan (Survei/Sensus), Sub Kegiatan (Kegiatan), atau Pengawas
       const matchSearch = 
         (item.nama_kegiatan || '').toLowerCase().includes(term) ||
         (item.nama_sub_kegiatan || '').toLowerCase().includes(term) ||
@@ -256,7 +256,7 @@ const Penugasan = () => {
       {/* --- HEADER ACTIONS --- */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <div className="text-gray-500 text-sm">
-          Kelola tim dan alokasi mitra untuk setiap sub-kegiatan.
+          Kelola tim dan alokasi mitra untuk setiap kegiatan.
         </div>
         <div className="flex gap-2">
           <button onClick={handleDownloadTemplate} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 transition shadow-sm">
@@ -277,7 +277,7 @@ const Penugasan = () => {
             <FaSearch className="absolute left-3 top-3 text-gray-400" />
             <input
               type="text"
-              placeholder="Cari kegiatan, sub kegiatan, atau pengawas..."
+              placeholder="Cari Survei/Sensus, Kegiatan, atau pengawas..."
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1A2A80] outline-none text-sm transition bg-gray-50 focus:bg-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -306,7 +306,7 @@ const Penugasan = () => {
           Object.entries(groupedPenugasan).map(([kegiatanName, subItems]) => (
             <div key={kegiatanName} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               
-              {/* Header Grup (Nama Kegiatan Utama) */}
+              {/* Header Grup (Nama Survei/Sensus) */}
               <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100 flex items-center gap-3">
                  <span className="text-[#1A2A80]"><FaClipboardList size={18} /></span>
                  <h2 className="text-lg font-bold text-gray-800">{kegiatanName}</h2>
@@ -315,7 +315,7 @@ const Penugasan = () => {
                  </span>
               </div>
 
-              {/* List Sub Kegiatan */}
+              {/* List Kegiatan */}
               <div className="divide-y divide-gray-100">
                 {subItems.map((task) => {
                   const isOpen = expandedTaskId === task.id_penugasan;
@@ -330,7 +330,7 @@ const Penugasan = () => {
                         onClick={() => toggleRow(task.id_penugasan)} 
                         className={`px-6 py-4 cursor-pointer transition-colors flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${isOpen ? 'bg-blue-50/40' : 'hover:bg-gray-50'}`}
                       >
-                        {/* Kiri: Info Sub Kegiatan */}
+                        {/* Kiri: Info Kegiatan */}
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-1">
                             <div className={`p-1 rounded-full transition-transform duration-200 ${isOpen ? 'rotate-180 text-[#1A2A80] bg-blue-100' : 'text-gray-400'}`}>

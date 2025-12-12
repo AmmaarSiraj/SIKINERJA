@@ -87,7 +87,7 @@ const EditKegiatan = () => {
 
       } catch (err) {
         console.error(err);
-        Swal.fire('Error', 'Gagal memuat data kegiatan.', 'error');
+        Swal.fire('Error', 'Gagal memuat data survei/sensus.', 'error');
       } finally {
         setLoading(false);
       }
@@ -100,7 +100,7 @@ const EditKegiatan = () => {
 
   const handleNextStep = () => {
     if (!indukData.nama_kegiatan) {
-        return Swal.fire('Validasi Gagal', 'Nama Kegiatan wajib diisi', 'warning');
+        return Swal.fire('Validasi Gagal', 'Nama Survei/Sensus wajib diisi', 'warning');
     }
     setStep(2);
     window.scrollTo(0, 0);
@@ -124,10 +124,10 @@ const EditKegiatan = () => {
   const handleFinalSubmit = async () => {
     // Validasi Frontend Sederhana
     for (const sub of subKegiatans) {
-      if (!sub.nama_sub_kegiatan) return Swal.fire('Gagal', 'Nama Sub Kegiatan tidak boleh kosong.', 'error');
+      if (!sub.nama_sub_kegiatan) return Swal.fire('Gagal', 'Nama Kegiatan tidak boleh kosong.', 'error');
       for (const h of sub.honorList) {
-        if (!h.kode_jabatan) return Swal.fire('Gagal', `Jabatan pada sub "${sub.nama_sub_kegiatan}" belum dipilih.`, 'error');
-        if (h.tarif <= 0) return Swal.fire('Gagal', `Tarif pada sub "${sub.nama_sub_kegiatan}" tidak valid.`, 'error');
+        if (!h.kode_jabatan) return Swal.fire('Gagal', `Jabatan pada kegiatan "${sub.nama_sub_kegiatan}" belum dipilih.`, 'error');
+        if (h.tarif <= 0) return Swal.fire('Gagal', `Tarif pada kegiatan "${sub.nama_sub_kegiatan}" tidak valid.`, 'error');
       }
     }
 
@@ -215,7 +215,7 @@ const EditKegiatan = () => {
 
       Swal.fire({
         title: 'Tersimpan!',
-        text: 'Perubahan kegiatan berhasil disimpan.',
+        text: 'Perubahan survei/sensus berhasil disimpan.',
         icon: 'success',
         timer: 2000,
         showConfirmButton: false
@@ -232,7 +232,7 @@ const EditKegiatan = () => {
     }
   };
 
-  if (loading) return <div className="text-center py-20 text-gray-500">Memuat data kegiatan...</div>;
+  if (loading) return <div className="text-center py-20 text-gray-500">Memuat data survei/sensus...</div>;
 
   return (
     <div className="max-w-5xl mx-auto pb-20">
@@ -243,7 +243,7 @@ const EditKegiatan = () => {
           <FaArrowLeft size={20} />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Edit Kegiatan</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Edit Survei/Sensus</h1>
           <p className="text-sm text-gray-500 flex items-center gap-2">
             <span className={`px-2 py-0.5 rounded ${step === 1 ? 'bg-[#1A2A80] text-white font-bold' : 'bg-gray-200 text-gray-500'}`}>1. Induk</span>
             <span className="text-gray-300">/</span>
@@ -257,12 +257,12 @@ const EditKegiatan = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 animate-fade-in-up">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
              <div className="bg-blue-100 text-[#1A2A80] p-2 rounded-lg"><FaLayerGroup /></div>
-             <h2 className="text-lg font-bold text-gray-800">Informasi Dasar Kegiatan</h2>
+             <h2 className="text-lg font-bold text-gray-800">Informasi Dasar Survei/Sensus</h2>
           </div>
 
           <div className="space-y-6 max-w-2xl mx-auto">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Nama Kegiatan</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Nama Survei/Sensus</label>
               <input 
                 type="text" 
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A2A80] focus:border-[#1A2A80] outline-none" 
@@ -321,7 +321,7 @@ const EditKegiatan = () => {
             <div className="bg-gray-200 group-hover:bg-[#1A2A80] text-white p-2 rounded-full transition">
                 <FaPlus size={14} />
             </div>
-            Tambah Sub Kegiatan Lain
+            Tambah Kegiatan Lain
           </button>
 
           <div className="mt-12 flex justify-between items-center pt-8 border-t border-gray-200">

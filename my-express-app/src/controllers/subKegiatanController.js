@@ -153,6 +153,7 @@ exports.getAllSubKegiatan = async (req, res) => {
     const sql = `
       SELECT 
         s.id, 
+        s.id_kegiatan,
         s.nama_sub_kegiatan, 
         s.deskripsi, 
         s.tanggal_mulai,
